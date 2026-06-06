@@ -81,20 +81,8 @@ async def _show_winners(callback: CallbackQuery, session: AsyncSession, page: in
     text = "\n\n".join(lines)
     kb = winners_keyboard(has_prev=has_prev, has_next=has_next, page=page)
 
-    # Send photo of last published winner if available
-    last_with_photo = next((w for w in winners if w.photo_id), None)
-
     try:
-        if last_with_photo and page == 0:
-            await callback.message.answer_photo(
-                photo=last_with_photo.photo_id,
-                caption=text,
-                parse_mode="HTML",
-                reply_markup=kb,
-            )
-            await callback.message.delete()
-        else:
-            await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
     except Exception:
         await callback.message.answer(text, parse_mode="HTML", reply_markup=kb)
 

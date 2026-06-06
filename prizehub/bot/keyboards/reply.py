@@ -28,6 +28,18 @@ def interests_keyboard() -> ReplyKeyboardMarkup:
     return builder.as_markup(resize_keyboard=True)
 
 
+def main_reply_keyboard() -> ReplyKeyboardMarkup:
+    """Persistent keyboard for subscribed users."""
+    builder = ReplyKeyboardBuilder()
+    builder.button(text="🏠 Главная")
+    builder.button(text="🎫 Заработать билеты")
+    builder.button(text="🏆 Рейтинг")
+    builder.button(text="🏅 Победители")
+    builder.button(text="👤 Профиль")
+    builder.adjust(1, 2, 2)
+    return builder.as_markup(resize_keyboard=True)
+
+
 def pre_subscribe_reply_keyboard() -> ReplyKeyboardMarkup:
     """Keyboard shown to users who haven't subscribed yet — lets them browse open sections."""
     builder = ReplyKeyboardBuilder()

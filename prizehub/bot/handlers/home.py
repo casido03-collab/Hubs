@@ -3,6 +3,7 @@ import pytz
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.config import settings
 from bot.database.repositories import UserRepository, SeasonRepository
@@ -85,6 +86,15 @@ async def _home_text(session: AsyncSession, telegram_id: int) -> tuple[str, str 
         f"{raffle_info}"
     )
     return text, season.prize_photo_id, home_keyboard()
+
+
+@router.message(F.text == "🏠 Главная")
+async def msg_home(message: Message, session: AsyncSession):
+    text, photo_id, kb = await _home_text(session, message.from_user.id)
+    if photo_id:
+        await message.answer_photo(photo=photo_id, caption=text, parse_mode="HTML", reply_markup=kb)
+    else:
+        await message.answer(text, parse_mode="HTML", reply_markup=kb)
 
 
 @router.callback_query(F.data == "home")

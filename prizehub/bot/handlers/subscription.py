@@ -1,9 +1,9 @@
 from aiogram import Router, F, Bot
-from aiogram.types import CallbackQuery, ReplyKeyboardRemove
+from aiogram.types import CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.config import settings
 from bot.database.repositories import UserRepository, SeasonRepository
-from bot.keyboards import main_menu_keyboard, subscribe_keyboard
+from bot.keyboards import main_menu_keyboard, subscribe_keyboard, main_reply_keyboard
 from bot.services.subscription import check_subscription
 from bot.services.tickets import TicketService
 from bot.services.channel_utils import build_sponsor_link
@@ -46,9 +46,6 @@ async def cb_check_subscription(callback: CallbackQuery, session: AsyncSession, 
             f"🥇 Ваше место: <b>#{rank}</b>"
         )
 
-        # Remove the pre-subscribe reply keyboard
-        await callback.message.answer("✅ Подписка подтверждена!", reply_markup=ReplyKeyboardRemove())
-
         if callback.message.photo:
             await callback.message.edit_caption(
                 caption=congrats_text,
@@ -61,10 +58,19 @@ async def cb_check_subscription(callback: CallbackQuery, session: AsyncSession, 
                 parse_mode="HTML",
                 reply_markup=main_menu_keyboard(),
             )
+
+        # Show persistent reply keyboard for subscribed user
+        await callback.message.answer(
+            "🏠 Главное меню — выберите раздел:",
+            reply_markup=main_reply_keyboard(),
+        )
     else:
         await callback.answer("✅ Подписка подтверждена!", show_alert=False)
-        await callback.message.answer("✅ Вы уже подписаны!", reply_markup=ReplyKeyboardRemove())
         await callback.message.edit_reply_markup(reply_markup=main_menu_keyboard())
+        await callback.message.answer(
+            "🏠 Главное меню — выберите раздел:",
+            reply_markup=main_reply_keyboard(),
+        )
 
 
 @router.callback_query(F.data == "open_sponsor")

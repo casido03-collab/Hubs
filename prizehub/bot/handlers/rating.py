@@ -12,33 +12,60 @@ MEDALS = ["🥇", "🥈", "🥉"]
 
 @router.message(F.text == "🏆 Рейтинг")
 async def msg_rating(message: Message, session: AsyncSession):
-    """Public top-10 leaderboard — accessible before subscription."""
+    """Leaderboard — personalized for subscribed users, public top-10 for guests."""
+    user_repo = UserRepository(session)
     season_repo = SeasonRepository(session)
+    user = await user_repo.get_by_telegram_id(message.from_user.id)
     season = await season_repo.get_active()
+
     if not season:
         await message.answer("🏆 <b>Рейтинг</b>\n\nСейчас нет активного сезона.", parse_mode="HTML")
         return
 
-    top = await season_repo.get_leaderboard(season.id, limit=10)
     total = await season_repo.participants_count(season.id)
 
-    if not top:
-        await message.answer(
-            "🏆 <b>Рейтинг сезона</b>\n\nПока нет участников. Подпишитесь на спонсора и станьте первым!",
-            parse_mode="HTML",
+    if user and user.is_subscribed:
+        # Personalized view
+        rs = RatingService(session)
+        ctx = await rs.get_context(user, season.id)
+        rank = ctx["rank"]
+        tickets = ctx["tickets"]
+        prev = ctx["prev"]
+        nxt = ctx["next"]
+        gap = ctx["tickets_to_next"]
+
+        lines = []
+        if prev:
+            lines.append(f"<b>{prev['rank']} {prev['name']} — {prev['tickets']:,}</b>")
+        lines.append(f"⭐ <b>Вы — {tickets:,}</b>  (#{rank})")
+        if nxt:
+            lines.append(f"<b>{nxt['rank']} {nxt['name']} — {nxt['tickets']:,}</b>")
+
+        gap_line = f"\n⬆️ До следующего места: <b>{gap}</b> билетов" if gap else ""
+        text = (
+            f"🏆 <b>Рейтинг сезона</b>\n"
+            f"Участников: <b>{total:,}</b>\n\n"
+            + "\n".join(lines) + gap_line
         )
-        return
+        await message.answer(text, parse_mode="HTML", reply_markup=back_to_menu())
+    else:
+        # Public top-10
+        top = await season_repo.get_leaderboard(season.id, limit=10)
+        if not top:
+            await message.answer(
+                "🏆 <b>Рейтинг сезона</b>\n\nПока нет участников. Подпишитесь на спонсора и станьте первым!",
+                parse_mode="HTML",
+            )
+            return
 
-    user_repo = UserRepository(session)
-    lines = [f"🏆 <b>Топ участников сезона</b>\nВсего участников: <b>{total:,}</b>\n"]
-    for i, entry in enumerate(top):
-        user = await user_repo.get_by_id(entry.user_id)
-        name = user.first_name if user else "—"
-        medal = MEDALS[i] if i < 3 else f"{i + 1}."
-        lines.append(f"{medal} <b>{name}</b> — {entry.tickets:,} билетов")
-
-    lines.append("\n🔒 Подпишитесь на канал спонсора, чтобы участвовать и попасть в рейтинг!")
-    await message.answer("\n".join(lines), parse_mode="HTML")
+        lines = [f"🏆 <b>Топ участников сезона</b>\nВсего участников: <b>{total:,}</b>\n"]
+        for i, entry in enumerate(top):
+            u = await user_repo.get_by_id(entry.user_id)
+            name = u.first_name if u else "—"
+            medal = MEDALS[i] if i < 3 else f"{i + 1}."
+            lines.append(f"{medal} <b>{name}</b> — {entry.tickets:,} билетов")
+        lines.append("\n🔒 Подпишитесь на канал спонсора, чтобы участвовать и попасть в рейтинг!")
+        await message.answer("\n".join(lines), parse_mode="HTML")
 
 
 @router.callback_query(F.data == "rating")

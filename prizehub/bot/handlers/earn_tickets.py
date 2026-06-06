@@ -1,7 +1,7 @@
 from datetime import datetime
 import pytz
 from aiogram import Router, F
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.config import settings
 from bot.database.repositories import UserRepository, SeasonRepository
@@ -21,6 +21,44 @@ async def _require_subscription(callback: CallbackQuery, session: AsyncSession) 
         )
         return False
     return True
+
+
+@router.message(F.text == "🎫 Заработать билеты")
+async def msg_earn_tickets(message: Message, session: AsyncSession):
+    user_repo = UserRepository(session)
+    user = await user_repo.get_by_telegram_id(message.from_user.id)
+    if not user or not user.is_subscribed:
+        await message.answer("🔒 Для участия необходимо подписаться на канал спонсора.")
+        return
+
+    season_repo = SeasonRepository(session)
+    season = await season_repo.get_active()
+    sp = await season_repo.get_participant(user.id, season.id) if season else None
+    tickets = sp.tickets if sp else 0
+
+    tz = pytz.timezone(settings.TIMEZONE)
+    now = datetime.now(tz)
+
+    bonus_available = True
+    if user.last_bonus_date:
+        last = user.last_bonus_date.astimezone(tz) if user.last_bonus_date.tzinfo else tz.localize(user.last_bonus_date)
+        bonus_available = last.date() < now.date()
+
+    login_available = True
+    if user.last_login_date:
+        last = user.last_login_date.astimezone(tz) if user.last_login_date.tzinfo else tz.localize(user.last_login_date)
+        login_available = last.date() < now.date()
+
+    text = (
+        f"🎫 <b>Заработать билеты</b>\n\n"
+        f"Ваши билеты: <b>{tickets:,}</b>\n"
+        f"Серия входов: <b>{user.login_streak}</b> дн.\n\n"
+        f"Выберите действие:"
+    )
+    await message.answer(
+        text, parse_mode="HTML",
+        reply_markup=earn_tickets_keyboard(bonus_available, login_available),
+    )
 
 
 @router.callback_query(F.data == "earn_tickets")

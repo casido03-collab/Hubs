@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.database.repositories import UserRepository, SeasonRepository
-from bot.keyboards import age_keyboard, main_menu_keyboard, subscribe_keyboard, pre_subscribe_reply_keyboard
+from bot.keyboards import age_keyboard, main_menu_keyboard, subscribe_keyboard, pre_subscribe_reply_keyboard, main_reply_keyboard
 from bot.states import OnboardingStates
 
 router = Router()
@@ -78,7 +78,7 @@ async def cmd_start(message: Message, state: FSMContext, session: AsyncSession, 
             await message.answer(
                 "🏠 <b>Главное меню</b>\n\nДобро пожаловать обратно!",
                 parse_mode="HTML",
-                reply_markup=main_menu_keyboard(),
+                reply_markup=main_reply_keyboard(),
             )
 
 

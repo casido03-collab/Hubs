@@ -13,6 +13,7 @@ from bot.database.repositories.raffle_repo import RaffleRepository
 from bot.services.raffle import RaffleService
 from bot.services.notifications import send_push, broadcast_out_of_turn
 from bot.services.subscription import check_subscription
+from bot.services import sponsor_mode
 
 logger = logging.getLogger(__name__)
 
@@ -213,7 +214,10 @@ async def generate_fake_winner(bot: Bot) -> None:
 
 async def recheck_subscriptions(bot: Bot, checker_bot: Bot) -> None:
     """Every 6 hours: verify all 'subscribed' users are still in the sponsor channel.
-    Strip access from those who left."""
+    Strip access from those who left. Skipped in white mode."""
+    if not sponsor_mode.is_required():
+        logger.info("recheck_subscriptions: skipped (white mode active).")
+        return
     async with async_session_factory() as session:
         season_repo = SeasonRepository(session)
         user_repo = UserRepository(session)

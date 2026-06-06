@@ -3,6 +3,7 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.database.repositories import UserRepository, SeasonRepository
 from bot.keyboards import back_to_menu
+from bot.services import sponsor_mode
 
 router = Router()
 
@@ -11,7 +12,7 @@ async def _profile_text(session: AsyncSession, telegram_id: int) -> str | None:
     user_repo = UserRepository(session)
     season_repo = SeasonRepository(session)
     user = await user_repo.get_by_telegram_id(telegram_id)
-    if not user or not user.is_subscribed:
+    if not sponsor_mode.user_has_access(user):
         return None
 
     season = await season_repo.get_active()

@@ -33,6 +33,13 @@ async def main() -> None:
     await create_tables()
     logger.info("Database tables ready.")
 
+    # Load persistent settings
+    from bot.database import async_session_factory
+    from bot.services import sponsor_mode
+    async with async_session_factory() as _sess:
+        await sponsor_mode.load(_sess)
+    logger.info(f"Sponsor mode required: {sponsor_mode.is_required()}")
+
     # Redis storage for FSM
     redis = Redis.from_url(settings.redis_url)
     storage = RedisStorage(redis=redis)

@@ -10,6 +10,7 @@ from bot.database.repositories import UserRepository, SeasonRepository
 from bot.database.repositories.raffle_repo import RaffleRepository
 from bot.keyboards import home_keyboard, main_menu_keyboard, subscribe_keyboard, check_subscription_keyboard, pre_subscribe_reply_keyboard
 from bot.services.subscription import check_subscription
+from bot.services import sponsor_mode
 
 router = Router()
 
@@ -24,7 +25,7 @@ async def _home_text(session: AsyncSession, telegram_id: int) -> tuple[str, str 
     if season is None:
         return "🏠 <b>Главное меню</b>\n\nСейчас нет активного сезона.", None, main_menu_keyboard()
 
-    if not user or not user.is_subscribed:
+    if not sponsor_mode.user_has_access(user):
         from bot.services.channel_utils import build_sponsor_link
         sponsor_link = build_sponsor_link(season.sponsor_channel)
         tz = pytz.timezone(settings.TIMEZONE)
@@ -96,7 +97,7 @@ async def msg_home(message: Message, session: AsyncSession, checker_bot: Bot):
     season_repo = SeasonRepository(session)
     user = await user_repo.get_by_telegram_id(message.from_user.id)
 
-    if user and user.is_subscribed:
+    if user and user.is_subscribed and sponsor_mode.is_required():
         season = await season_repo.get_active()
         if season:
             channel_id = season.sponsor_channel_id or season.sponsor_channel

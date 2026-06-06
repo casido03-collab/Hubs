@@ -7,6 +7,7 @@ from bot.config import settings
 from bot.database.repositories import UserRepository, SeasonRepository
 from bot.keyboards import earn_tickets_keyboard, back_to_menu
 from bot.services.tickets import TicketService
+from bot.services import sponsor_mode
 
 router = Router()
 
@@ -14,7 +15,7 @@ router = Router()
 async def _require_subscription(callback: CallbackQuery, session: AsyncSession) -> bool:
     user_repo = UserRepository(session)
     user = await user_repo.get_by_telegram_id(callback.from_user.id)
-    if not user or not user.is_subscribed:
+    if not sponsor_mode.user_has_access(user):
         await callback.answer(
             "🔒 Для участия необходимо подписаться на канал спонсора.",
             show_alert=True,
@@ -27,7 +28,7 @@ async def _require_subscription(callback: CallbackQuery, session: AsyncSession) 
 async def msg_earn_tickets(message: Message, session: AsyncSession):
     user_repo = UserRepository(session)
     user = await user_repo.get_by_telegram_id(message.from_user.id)
-    if not user or not user.is_subscribed:
+    if not sponsor_mode.user_has_access(user):
         await message.answer("🔒 Для участия необходимо подписаться на канал спонсора.")
         return
 

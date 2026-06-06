@@ -6,9 +6,11 @@ from .raffles import router as raffles_router
 from .users import router as users_router
 from .winners import router as winners_router
 from .pushes import router as pushes_router
+from .sponsor import router as sponsor_router
 
 admin_router = Router()
 admin_router.include_router(base_router)
+admin_router.include_router(sponsor_router)   # first — catches /sponsor before other handlers
 admin_router.include_router(stats_router)
 admin_router.include_router(seasons_router)
 admin_router.include_router(raffles_router)

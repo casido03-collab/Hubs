@@ -5,6 +5,7 @@ from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.database.repositories import UserRepository, SeasonRepository
 from bot.keyboards import age_keyboard, main_menu_keyboard, subscribe_keyboard, pre_subscribe_reply_keyboard, main_reply_keyboard
+from bot.services import sponsor_mode
 from bot.states import OnboardingStates
 
 router = Router()
@@ -72,7 +73,7 @@ async def cmd_start(message: Message, state: FSMContext, session: AsyncSession, 
             )
             return
 
-        if not user.is_subscribed:
+        if not sponsor_mode.user_has_access(user):
             await _show_subscribe_screen(message, season)
         else:
             await message.answer(

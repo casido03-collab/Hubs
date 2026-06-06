@@ -4,7 +4,8 @@ from aiogram.types import Message, ReplyKeyboardRemove
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.constants import AGE_RANGES, GENDERS, INTERESTS
 from bot.database.repositories import UserRepository, SeasonRepository
-from bot.keyboards import gender_keyboard, interests_keyboard, subscribe_keyboard, main_menu_keyboard, pre_subscribe_reply_keyboard
+from bot.keyboards import gender_keyboard, interests_keyboard, subscribe_keyboard, main_menu_keyboard, pre_subscribe_reply_keyboard, main_reply_keyboard
+from bot.services import sponsor_mode
 from bot.states import OnboardingStates
 
 router = Router()
@@ -55,6 +56,14 @@ async def process_interests(message: Message, state: FSMContext, session: AsyncS
             await message.answer(
                 "🎉 Профиль заполнен!\n\nСейчас нет активного сезона. Заходите позже!",
                 reply_markup=ReplyKeyboardRemove(),
+            )
+            return
+
+        # White mode: skip sponsor screen entirely
+        if not sponsor_mode.is_required():
+            await message.answer(
+                "✅ Профиль заполнен! Добро пожаловать в PrizeHub!",
+                reply_markup=main_reply_keyboard(),
             )
             return
 

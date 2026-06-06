@@ -3,6 +3,7 @@ from .season_repo import SeasonRepository
 from .ticket_repo import TicketRepository
 from .raffle_repo import RaffleRepository
 from .winner_repo import WinnerRepository
+from .settings_repo import GlobalSettingRepository
 
 __all__ = [
     "UserRepository",
@@ -10,4 +11,5 @@ __all__ = [
     "TicketRepository",
     "RaffleRepository",
     "WinnerRepository",
+    "GlobalSettingRepository",
 ]

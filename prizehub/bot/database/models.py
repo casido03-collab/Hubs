@@ -123,3 +123,10 @@ class PushLog(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     push_type = Column(String(64), nullable=False)
     sent_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class GlobalSetting(Base):
+    __tablename__ = "global_settings"
+
+    key = Column(String(64), primary_key=True)
+    value = Column(Text, nullable=False, default="")

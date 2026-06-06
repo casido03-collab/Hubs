@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.database.repositories import UserRepository, SeasonRepository
 from bot.keyboards import back_to_menu
 from bot.services.rating import RatingService
+from bot.services import sponsor_mode
 
 router = Router()
 
@@ -24,7 +25,7 @@ async def msg_rating(message: Message, session: AsyncSession):
 
     total = await season_repo.participants_count(season.id)
 
-    if user and user.is_subscribed:
+    if sponsor_mode.user_has_access(user):
         # Personalized view
         rs = RatingService(session)
         ctx = await rs.get_context(user, season.id)
@@ -74,7 +75,7 @@ async def cb_rating(callback: CallbackQuery, session: AsyncSession):
     season_repo = SeasonRepository(session)
 
     user = await user_repo.get_by_telegram_id(callback.from_user.id)
-    if not user or not user.is_subscribed:
+    if not sponsor_mode.user_has_access(user):
         await callback.answer("🔒 Для участия необходимо подписаться на канал спонсора.", show_alert=True)
         return
 

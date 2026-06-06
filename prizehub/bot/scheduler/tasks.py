@@ -120,32 +120,41 @@ async def check_season_end(bot: Bot) -> None:
 
 
 async def generate_fake_winner(bot: Bot) -> None:
-    """Every 3 days: create an auto-generated winner, publish immediately, broadcast to all except winner."""
+    """Every 3 days: conduct the next scheduled mini-raffle with a fake winner,
+    publish immediately and broadcast to all subscribed users."""
     async with async_session_factory() as session:
         season_repo = SeasonRepository(session)
+        raffle_repo = RaffleRepository(session)
+        winner_repo = WinnerRepository(session)
+        user_repo = UserRepository(session)
+
         season = await season_repo.get_active()
         if not season:
             logger.info("generate_fake_winner: no active season, skipping.")
             return
 
-        winner_repo = WinnerRepository(session)
-        user_repo = UserRepository(session)
+        # Use the next scheduled mini-raffle so prize and counter stay in sync with main screen
+        raffle = await raffle_repo.get_next(season.id)
+        if not raffle:
+            logger.info("generate_fake_winner: no pending raffles left in season.")
+            return
 
-        # Pick prize cycling through the list based on how many winners already exist
-        published = await winner_repo.get_published(limit=200)
-        prize_amount = _FAKE_PRIZES[len(published) % len(_FAKE_PRIZES)]
-
-        # Pick a name that hasn't been used recently
-        recent_names = {w.prize for w in published[:10]}  # crude uniqueness
+        prize_amount = raffle.prize_amount
         name = random.choice(_FAKE_NAMES)
 
-        # Unique fake telegram_id based on timestamp so reruns don't collide
+        # Unique fake telegram_id per run (timestamp-based, won't clash with real users)
         fake_tg_id = _AUTO_TG_ID_BASE + int(datetime.utcnow().timestamp()) % 100_000
 
-        # Create fake user
+        # Create or reuse fake user
         existing = await user_repo.get_by_telegram_id(fake_tg_id)
         if existing:
             fake_user = existing
+            # Update name for variety
+            from sqlalchemy import update as sa_update
+            from bot.database.models import User
+            await session.execute(
+                sa_update(User).where(User.id == fake_user.id).values(first_name=name)
+            )
         else:
             from bot.database.models import User
             fake_user = User(
@@ -160,7 +169,20 @@ async def generate_fake_winner(bot: Bot) -> None:
             session.add(fake_user)
             await session.flush()
 
-        # Create winner record and publish immediately
+        # Close the mini-raffle (marks it done so main screen advances to the next one)
+        from sqlalchemy import update as sa_update
+        from bot.database.models import MiniRaffle, Winner
+        await session.execute(
+            sa_update(MiniRaffle)
+            .where(MiniRaffle.id == raffle.id)
+            .values(
+                winner_id=fake_user.id,
+                conducted_at=datetime.utcnow(),
+                status="done",
+            )
+        )
+
+        # Create winner record, publish immediately
         winner = await winner_repo.create(
             user_id=fake_user.id,
             season_id=season.id,
@@ -168,18 +190,16 @@ async def generate_fake_winner(bot: Bot) -> None:
             prize=f"{prize_amount} ₽",
         )
         tz = pytz.timezone(settings.TIMEZONE)
-        from sqlalchemy import update
-        from bot.database.models import Winner
         await session.execute(
-            update(Winner)
+            sa_update(Winner)
             .where(Winner.id == winner.id)
             .values(status="published", published_at=datetime.now(tz))
         )
         await session.commit()
 
-        logger.info(f"Auto-winner generated: {name} — {prize_amount} ₽")
+        logger.info(f"Auto-winner generated: {name} — {prize_amount} ₽ (raffle day {raffle.day_number})")
 
-        # Broadcast to all real subscribed users (fake user is not subscribed → excluded naturally)
+        # Broadcast to all real subscribed users (fake user is not subscribed → skipped naturally)
         await broadcast_out_of_turn(
             bot,
             f"🎁 <b>Мини-розыгрыш завершён!</b>\n\n"

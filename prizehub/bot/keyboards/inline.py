@@ -98,11 +98,16 @@ def admin_season_actions_keyboard(season_id: int, is_active: bool) -> InlineKeyb
     return builder.as_markup()
 
 
-def admin_winner_actions_keyboard(winner_id: int) -> InlineKeyboardMarkup:
+def admin_winner_actions_keyboard(winner_id: int, status: str = "pending") -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="🖼 Загрузить фото", callback_data=f"admin_winner_photo:{winner_id}"))
-    builder.row(InlineKeyboardButton(text="📢 Опубликовать без фото", callback_data=f"admin_winner_publish:{winner_id}"))
-    builder.row(InlineKeyboardButton(text="🔄 Перевыбрать победителя", callback_data=f"admin_winner_reroll:{winner_id}"))
+    if status == "published":
+        builder.row(InlineKeyboardButton(text="📷 Обновить фото", callback_data=f"admin_winner_updatephoto:{winner_id}"))
+        builder.row(InlineKeyboardButton(text="📝 Обновить описание", callback_data=f"admin_winner_updatedesc:{winner_id}"))
+    else:
+        builder.row(InlineKeyboardButton(text="🖼 Загрузить фото", callback_data=f"admin_winner_photo:{winner_id}"))
+        builder.row(InlineKeyboardButton(text="📢 Опубликовать без фото", callback_data=f"admin_winner_publish:{winner_id}"))
+        builder.row(InlineKeyboardButton(text="🔄 Перевыбрать победителя", callback_data=f"admin_winner_reroll:{winner_id}"))
+    builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="admin_winners"))
     return builder.as_markup()
 
 

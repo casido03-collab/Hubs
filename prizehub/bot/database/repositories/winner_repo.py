@@ -41,6 +41,18 @@ class WinnerRepository:
             )
         )
 
+    async def update_photo(self, winner_id: int, photo_id: str | None, description: str | None) -> None:
+        """Update photo/description for an already-published winner (no status change)."""
+        values: dict = {}
+        if photo_id is not None:
+            values["photo_id"] = photo_id
+        if description is not None:
+            values["description"] = description
+        if values:
+            await self.session.execute(
+                update(Winner).where(Winner.id == winner_id).values(**values)
+            )
+
     async def get_published(self, limit: int = 20, offset: int = 0) -> list[Winner]:
         result = await self.session.execute(
             select(Winner)

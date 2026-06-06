@@ -57,7 +57,7 @@ async def main() -> None:
     dp.include_router(main_router)
 
     # Scheduler
-    scheduler = setup_scheduler(bot)
+    scheduler = setup_scheduler(bot, checker_bot)
     scheduler.start()
     logger.info("Scheduler started.")
 

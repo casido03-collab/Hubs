@@ -1,6 +1,6 @@
 from datetime import datetime
 import pytz
-from aiogram import Router, F
+from aiogram import Router, F, Bot
 from aiogram.types import CallbackQuery, Message
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.config import settings
 from bot.database.repositories import UserRepository, SeasonRepository
 from bot.database.repositories.raffle_repo import RaffleRepository
-from bot.keyboards import home_keyboard, main_menu_keyboard, subscribe_keyboard, check_subscription_keyboard
+from bot.keyboards import home_keyboard, main_menu_keyboard, subscribe_keyboard, check_subscription_keyboard, pre_subscribe_reply_keyboard
+from bot.services.subscription import check_subscription
 
 router = Router()
 
@@ -89,7 +90,29 @@ async def _home_text(session: AsyncSession, telegram_id: int) -> tuple[str, str 
 
 
 @router.message(F.text == "🏠 Главная")
-async def msg_home(message: Message, session: AsyncSession):
+async def msg_home(message: Message, session: AsyncSession, checker_bot: Bot):
+    # Re-verify subscription on every home press — catches users who unsubscribed
+    user_repo = UserRepository(session)
+    season_repo = SeasonRepository(session)
+    user = await user_repo.get_by_telegram_id(message.from_user.id)
+
+    if user and user.is_subscribed:
+        season = await season_repo.get_active()
+        if season:
+            channel_id = season.sponsor_channel_id or season.sponsor_channel
+            still_subscribed = await check_subscription(checker_bot, channel_id, message.from_user.id)
+            if not still_subscribed:
+                await user_repo.set_subscribed(user.id, False)
+                await session.commit()
+                await message.answer(
+                    "⚠️ Вы отписались от канала спонсора.\n\n"
+                    "Для участия в розыгрыше необходимо оставаться подписанным.",
+                    reply_markup=pre_subscribe_reply_keyboard(),
+                )
+                from bot.handlers.start import _show_subscribe_screen
+                await _show_subscribe_screen(message, season)
+                return
+
     text, photo_id, kb = await _home_text(session, message.from_user.id)
     if photo_id:
         await message.answer_photo(photo=photo_id, caption=text, parse_mode="HTML", reply_markup=kb)

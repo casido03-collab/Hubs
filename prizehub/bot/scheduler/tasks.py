@@ -12,6 +12,7 @@ from bot.database.repositories import UserRepository, SeasonRepository, WinnerRe
 from bot.database.repositories.raffle_repo import RaffleRepository
 from bot.services.raffle import RaffleService
 from bot.services.notifications import send_push, broadcast_out_of_turn
+from bot.services.subscription import check_subscription
 
 logger = logging.getLogger(__name__)
 
@@ -210,6 +211,54 @@ async def generate_fake_winner(bot: Bot) -> None:
         )
 
 
+async def recheck_subscriptions(bot: Bot, checker_bot: Bot) -> None:
+    """Every 6 hours: verify all 'subscribed' users are still in the sponsor channel.
+    Strip access from those who left."""
+    async with async_session_factory() as session:
+        season_repo = SeasonRepository(session)
+        user_repo = UserRepository(session)
+
+        season = await season_repo.get_active()
+        if not season:
+            return
+
+        channel_id = season.sponsor_channel_id or season.sponsor_channel
+        if not channel_id:
+            logger.warning("recheck_subscriptions: no channel_id configured for active season.")
+            return
+
+        users = await user_repo.get_all_subscribed()
+        unsubscribed_count = 0
+
+        for user in users:
+            try:
+                still_subscribed = await check_subscription(checker_bot, channel_id, user.telegram_id)
+            except Exception as e:
+                logger.warning(f"recheck_subscriptions: error checking user {user.telegram_id}: {e}")
+                continue
+
+            if not still_subscribed:
+                await user_repo.set_subscribed(user.id, False)
+                unsubscribed_count += 1
+                # Notify the user they lost access
+                try:
+                    await bot.send_message(
+                        user.telegram_id,
+                        "⚠️ <b>Вы отписались от канала спонсора.</b>\n\n"
+                        "Ваш доступ к розыгрышу приостановлен.\n"
+                        "Подпишитесь снова и нажмите «🏠 Главная» для восстановления.",
+                        parse_mode="HTML",
+                    )
+                except Exception:
+                    pass
+
+        if unsubscribed_count:
+            await session.commit()
+            logger.info(f"recheck_subscriptions: revoked access for {unsubscribed_count} users.")
+        else:
+            logger.info("recheck_subscriptions: all users still subscribed.")
+
+
 async def send_smart_pushes(bot: Bot) -> None:
     """Send smart push notifications."""
     async with async_session_factory() as session:
@@ -268,7 +317,7 @@ async def send_smart_pushes(bot: Bot) -> None:
         await session.commit()
 
 
-def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
+def setup_scheduler(bot: Bot, checker_bot: Bot) -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler(timezone=pytz.utc)
 
     # Check mini raffles every 5 minutes
@@ -306,6 +355,16 @@ def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
         trigger=CronTrigger(day="*/3", hour=15, minute=0, timezone=pytz.utc),
         kwargs={"bot": bot},
         id="generate_fake_winner",
+        replace_existing=True,
+    )
+
+    # Re-check all subscriptions every 6 hours
+    scheduler.add_job(
+        recheck_subscriptions,
+        trigger="interval",
+        hours=6,
+        kwargs={"bot": bot, "checker_bot": checker_bot},
+        id="recheck_subscriptions",
         replace_existing=True,
     )
 

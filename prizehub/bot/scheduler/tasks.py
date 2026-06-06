@@ -1,18 +1,35 @@
 import logging
+import random
+import uuid
 from datetime import datetime
 import pytz
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from apscheduler.triggers.date import DateTrigger
 from aiogram import Bot
 from bot.config import settings
 from bot.database import async_session_factory
-from bot.database.repositories import UserRepository, SeasonRepository
+from bot.database.repositories import UserRepository, SeasonRepository, WinnerRepository
 from bot.database.repositories.raffle_repo import RaffleRepository
 from bot.services.raffle import RaffleService
-from bot.services.notifications import send_push
+from bot.services.notifications import send_push, broadcast_out_of_turn
 
 logger = logging.getLogger(__name__)
+
+# Pool of realistic Russian names for auto-generated winners
+_FAKE_NAMES = [
+    "Алексей К.", "Мария П.", "Дмитрий В.", "Екатерина Н.",
+    "Игорь С.", "Анастасия М.", "Сергей Л.", "Ольга Д.",
+    "Андрей Т.", "Наталья Б.", "Павел Ж.", "Юлия Р.",
+    "Максим Ф.", "Виктория З.", "Роман Ш.", "Елена А.",
+    "Артём К.", "Светлана П.", "Никита Г.", "Татьяна В.",
+    "Владимир Е.", "Ирина Х.", "Евгений Ю.", "Валерия С.",
+    "Кирилл Н.", "Ксения М.", "Денис Б.", "Людмила Р.",
+]
+
+_FAKE_PRIZES = [500, 1000, 1500, 2000]
+
+# telegram_id range for auto-generated fake winners (won't clash with seed_winners.py range)
+_AUTO_TG_ID_BASE = 9_200_000
 
 
 async def check_mini_raffles(bot: Bot) -> None:
@@ -102,6 +119,77 @@ async def check_season_end(bot: Bot) -> None:
                     # No auto-broadcast — admin will contact winner and publish manually
 
 
+async def generate_fake_winner(bot: Bot) -> None:
+    """Every 3 days: create an auto-generated winner, publish immediately, broadcast to all except winner."""
+    async with async_session_factory() as session:
+        season_repo = SeasonRepository(session)
+        season = await season_repo.get_active()
+        if not season:
+            logger.info("generate_fake_winner: no active season, skipping.")
+            return
+
+        winner_repo = WinnerRepository(session)
+        user_repo = UserRepository(session)
+
+        # Pick prize cycling through the list based on how many winners already exist
+        published = await winner_repo.get_published(limit=200)
+        prize_amount = _FAKE_PRIZES[len(published) % len(_FAKE_PRIZES)]
+
+        # Pick a name that hasn't been used recently
+        recent_names = {w.prize for w in published[:10]}  # crude uniqueness
+        name = random.choice(_FAKE_NAMES)
+
+        # Unique fake telegram_id based on timestamp so reruns don't collide
+        fake_tg_id = _AUTO_TG_ID_BASE + int(datetime.utcnow().timestamp()) % 100_000
+
+        # Create fake user
+        existing = await user_repo.get_by_telegram_id(fake_tg_id)
+        if existing:
+            fake_user = existing
+        else:
+            from bot.database.models import User
+            fake_user = User(
+                telegram_id=fake_tg_id,
+                first_name=name,
+                referral_code=f"auto_{uuid.uuid4().hex[:8]}",
+                is_subscribed=False,
+                onboarding_done=True,
+                login_streak=0,
+                total_wins=1,
+            )
+            session.add(fake_user)
+            await session.flush()
+
+        # Create winner record and publish immediately
+        winner = await winner_repo.create(
+            user_id=fake_user.id,
+            season_id=season.id,
+            raffle_type="mini",
+            prize=f"{prize_amount} ₽",
+        )
+        tz = pytz.timezone(settings.TIMEZONE)
+        from sqlalchemy import update
+        from bot.database.models import Winner
+        await session.execute(
+            update(Winner)
+            .where(Winner.id == winner.id)
+            .values(status="published", published_at=datetime.now(tz))
+        )
+        await session.commit()
+
+        logger.info(f"Auto-winner generated: {name} — {prize_amount} ₽")
+
+        # Broadcast to all real subscribed users (fake user is not subscribed → excluded naturally)
+        await broadcast_out_of_turn(
+            bot,
+            f"🎁 <b>Мини-розыгрыш завершён!</b>\n\n"
+            f"Приз: <b>{prize_amount} ₽</b>\n"
+            f"Победитель: <b>{name}</b>\n\n"
+            f"Смотрите результаты в разделе «🏅 Победители»!",
+            exclude_telegram_id=fake_tg_id,
+        )
+
+
 async def send_smart_pushes(bot: Bot) -> None:
     """Send smart push notifications."""
     async with async_session_factory() as session:
@@ -189,6 +277,15 @@ def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
         trigger=CronTrigger(hour=7, minute=0, timezone=pytz.utc),  # 10:00 MSK = 07:00 UTC
         kwargs={"bot": bot},
         id="smart_pushes",
+        replace_existing=True,
+    )
+
+    # Auto-generate fake winner every 3 days at 18:00 MSK (15:00 UTC)
+    scheduler.add_job(
+        generate_fake_winner,
+        trigger=CronTrigger(day="*/3", hour=15, minute=0, timezone=pytz.utc),
+        kwargs={"bot": bot},
+        id="generate_fake_winner",
         replace_existing=True,
     )
 

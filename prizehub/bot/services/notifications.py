@@ -40,12 +40,14 @@ async def send_push(bot: Bot, user: User, text: str, session: AsyncSession, out_
         return False
 
 
-async def broadcast_out_of_turn(bot: Bot, text: str) -> None:
+async def broadcast_out_of_turn(bot: Bot, text: str, exclude_telegram_id: int | None = None) -> None:
     async with async_session_factory() as session:
         users = await UserRepository(session).get_all_subscribed()
         for user in users:
+            if exclude_telegram_id and user.telegram_id == exclude_telegram_id:
+                continue
             try:
-                await bot.send_message(chat_id=user.telegram_id, text=text)
+                await bot.send_message(chat_id=user.telegram_id, text=text, parse_mode="HTML")
                 log = PushLog(user_id=user.id, push_type="broadcast")
                 session.add(log)
             except (TelegramForbiddenError, TelegramBadRequest):

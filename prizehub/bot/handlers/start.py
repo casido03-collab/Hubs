@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.database.repositories import UserRepository, SeasonRepository
-from bot.keyboards import age_keyboard, main_menu_keyboard, subscribe_keyboard
+from bot.keyboards import age_keyboard, main_menu_keyboard, subscribe_keyboard, pre_subscribe_reply_keyboard
 from bot.states import OnboardingStates
 
 router = Router()
@@ -105,6 +105,12 @@ async def _show_subscribe_screen(message: Message, season):
 
     from bot.services.channel_utils import build_sponsor_link
     sponsor_link = build_sponsor_link(season.sponsor_channel)
+
+    # Set persistent reply keyboard so user can browse open sections before subscribing
+    await message.answer(
+        "👇 Вы также можете просмотреть доступные разделы:",
+        reply_markup=pre_subscribe_reply_keyboard(),
+    )
 
     if season.prize_photo_id:
         await message.answer_photo(

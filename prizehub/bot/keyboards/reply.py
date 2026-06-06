@@ -28,6 +28,15 @@ def interests_keyboard() -> ReplyKeyboardMarkup:
     return builder.as_markup(resize_keyboard=True)
 
 
+def pre_subscribe_reply_keyboard() -> ReplyKeyboardMarkup:
+    """Keyboard shown to users who haven't subscribed yet — lets them browse open sections."""
+    builder = ReplyKeyboardBuilder()
+    builder.button(text="🏅 Победители")
+    builder.button(text="🏆 Рейтинг")
+    builder.adjust(2)
+    return builder.as_markup(resize_keyboard=True)
+
+
 def remove_keyboard() -> ReplyKeyboardMarkup:
     from aiogram.types import ReplyKeyboardRemove
     return ReplyKeyboardRemove()

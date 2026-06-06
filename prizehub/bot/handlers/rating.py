@@ -1,11 +1,44 @@
 from aiogram import Router, F
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.database.repositories import UserRepository, SeasonRepository
 from bot.keyboards import back_to_menu
 from bot.services.rating import RatingService
 
 router = Router()
+
+MEDALS = ["🥇", "🥈", "🥉"]
+
+
+@router.message(F.text == "🏆 Рейтинг")
+async def msg_rating(message: Message, session: AsyncSession):
+    """Public top-10 leaderboard — accessible before subscription."""
+    season_repo = SeasonRepository(session)
+    season = await season_repo.get_active()
+    if not season:
+        await message.answer("🏆 <b>Рейтинг</b>\n\nСейчас нет активного сезона.", parse_mode="HTML")
+        return
+
+    top = await season_repo.get_leaderboard(season.id, limit=10)
+    total = await season_repo.participants_count(season.id)
+
+    if not top:
+        await message.answer(
+            "🏆 <b>Рейтинг сезона</b>\n\nПока нет участников. Подпишитесь на спонсора и станьте первым!",
+            parse_mode="HTML",
+        )
+        return
+
+    user_repo = UserRepository(session)
+    lines = [f"🏆 <b>Топ участников сезона</b>\nВсего участников: <b>{total:,}</b>\n"]
+    for i, entry in enumerate(top):
+        user = await user_repo.get_by_id(entry.user_id)
+        name = user.first_name if user else "—"
+        medal = MEDALS[i] if i < 3 else f"{i + 1}."
+        lines.append(f"{medal} <b>{name}</b> — {entry.tickets:,} билетов")
+
+    lines.append("\n🔒 Подпишитесь на канал спонсора, чтобы участвовать и попасть в рейтинг!")
+    await message.answer("\n".join(lines), parse_mode="HTML")
 
 
 @router.callback_query(F.data == "rating")

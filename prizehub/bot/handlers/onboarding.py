@@ -4,7 +4,7 @@ from aiogram.types import Message, ReplyKeyboardRemove
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.constants import AGE_RANGES, GENDERS, INTERESTS
 from bot.database.repositories import UserRepository, SeasonRepository
-from bot.keyboards import gender_keyboard, interests_keyboard, subscribe_keyboard, main_menu_keyboard
+from bot.keyboards import gender_keyboard, interests_keyboard, subscribe_keyboard, main_menu_keyboard, pre_subscribe_reply_keyboard
 from bot.states import OnboardingStates
 
 router = Router()
@@ -84,7 +84,11 @@ async def process_interests(message: Message, state: FSMContext, session: AsyncS
             f"5️⃣ Выигрывайте призы"
         )
 
-        await message.answer("✅ Отлично! Профиль заполнен.", reply_markup=ReplyKeyboardRemove())
+        # Set persistent reply keyboard so user can browse open sections before subscribing
+        await message.answer(
+            "✅ Отлично! Профиль заполнен.\n\n👇 Вы можете просмотреть доступные разделы:",
+            reply_markup=pre_subscribe_reply_keyboard(),
+        )
 
         if season.prize_photo_id:
             await message.answer_photo(

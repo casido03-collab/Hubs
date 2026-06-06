@@ -4,7 +4,7 @@ from .inline import (
     admin_menu_keyboard, admin_season_actions_keyboard,
     admin_winner_actions_keyboard, admin_back_keyboard,
 )
-from .reply import age_keyboard, gender_keyboard, interests_keyboard, remove_keyboard
+from .reply import age_keyboard, gender_keyboard, interests_keyboard, remove_keyboard, pre_subscribe_reply_keyboard
 
 __all__ = [
     "subscribe_keyboard", "check_subscription_keyboard", "main_menu_keyboard",
@@ -12,4 +12,5 @@ __all__ = [
     "admin_menu_keyboard", "admin_season_actions_keyboard",
     "admin_winner_actions_keyboard", "admin_back_keyboard",
     "age_keyboard", "gender_keyboard", "interests_keyboard", "remove_keyboard",
+    "pre_subscribe_reply_keyboard",
 ]

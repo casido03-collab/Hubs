@@ -1,11 +1,12 @@
 from aiogram import Router, F, Bot
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, ReplyKeyboardRemove
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.config import settings
 from bot.database.repositories import UserRepository, SeasonRepository
 from bot.keyboards import main_menu_keyboard, subscribe_keyboard
 from bot.services.subscription import check_subscription
 from bot.services.tickets import TicketService
+from bot.services.channel_utils import build_sponsor_link
 
 router = Router()
 
@@ -38,27 +39,31 @@ async def cb_check_subscription(callback: CallbackQuery, session: AsyncSession, 
         tickets = await ts.award_start(user, season.id)
         rank = await season_repo.get_user_rank(user.id, season.id)
 
-        await callback.message.edit_caption(
-            caption=(
-                f"🎊 <b>Поздравляем!</b>\n\n"
-                f"Вы участвуете в сезоне.\n\n"
-                f"🎫 Начислено: <b>{tickets}</b> стартовых билетов\n"
-                f"🥇 Ваше место: <b>#{rank}</b>"
-            ),
-            parse_mode="HTML",
-            reply_markup=main_menu_keyboard(),
-        ) if callback.message.photo else await callback.message.edit_text(
-            text=(
-                f"🎊 <b>Поздравляем!</b>\n\n"
-                f"Вы участвуете в сезоне.\n\n"
-                f"🎫 Начислено: <b>{tickets}</b> стартовых билетов\n"
-                f"🥇 Ваше место: <b>#{rank}</b>"
-            ),
-            parse_mode="HTML",
-            reply_markup=main_menu_keyboard(),
+        congrats_text = (
+            f"🎊 <b>Поздравляем!</b>\n\n"
+            f"Вы участвуете в сезоне.\n\n"
+            f"🎫 Начислено: <b>{tickets}</b> стартовых билетов\n"
+            f"🥇 Ваше место: <b>#{rank}</b>"
         )
+
+        # Remove the pre-subscribe reply keyboard
+        await callback.message.answer("✅ Подписка подтверждена!", reply_markup=ReplyKeyboardRemove())
+
+        if callback.message.photo:
+            await callback.message.edit_caption(
+                caption=congrats_text,
+                parse_mode="HTML",
+                reply_markup=main_menu_keyboard(),
+            )
+        else:
+            await callback.message.edit_text(
+                text=congrats_text,
+                parse_mode="HTML",
+                reply_markup=main_menu_keyboard(),
+            )
     else:
         await callback.answer("✅ Подписка подтверждена!", show_alert=False)
+        await callback.message.answer("✅ Вы уже подписаны!", reply_markup=ReplyKeyboardRemove())
         await callback.message.edit_reply_markup(reply_markup=main_menu_keyboard())
 
 
@@ -67,7 +72,7 @@ async def cb_open_sponsor(callback: CallbackQuery, session: AsyncSession):
     season_repo = SeasonRepository(session)
     season = await season_repo.get_active()
     if season:
-        link = f"https://t.me/{season.sponsor_channel.lstrip('@')}"
+        link = build_sponsor_link(season.sponsor_channel)
         await callback.answer(url=link)
     else:
         await callback.answer("Нет активного сезона.", show_alert=True)

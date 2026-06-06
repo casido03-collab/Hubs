@@ -1,5 +1,5 @@
 from aiogram import Router, F
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.database.repositories import WinnerRepository, UserRepository
 from bot.keyboards import winners_keyboard, back_to_menu
@@ -7,6 +7,29 @@ from bot.keyboards import winners_keyboard, back_to_menu
 router = Router()
 
 PAGE_SIZE = 5
+
+
+@router.message(F.text == "🏅 Победители")
+async def msg_winners(message: Message, session: AsyncSession):
+    winner_repo = WinnerRepository(session)
+    winners = await winner_repo.get_published(limit=PAGE_SIZE, offset=0)
+
+    if not winners:
+        await message.answer(
+            "🏅 <b>Победители</b>\n\nПока нет опубликованных победителей.",
+            parse_mode="HTML",
+        )
+        return
+
+    user_repo = UserRepository(session)
+    lines = ["🏅 <b>Победители</b>\n"]
+    for w in winners:
+        user = await user_repo.get_by_id(w.user_id)
+        name = user.first_name if user else "—"
+        date_str = w.published_at.strftime("%d.%m.%Y") if w.published_at else "—"
+        type_icon = "💎" if w.raffle_type == "main" else "🎁"
+        lines.append(f"{type_icon} <b>{name}</b> — {w.prize}\n📅 {date_str}")
+    await message.answer("\n\n".join(lines), parse_mode="HTML")
 
 
 @router.callback_query(F.data == "winners")

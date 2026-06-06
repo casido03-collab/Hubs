@@ -180,6 +180,90 @@ async def admin_season_sponsor(message: Message, state: FSMContext, session: Asy
         )
 
 
+@router.callback_query(F.data.startswith("admin_season_recheck:"))
+async def cb_admin_season_recheck(callback: CallbackQuery, session: AsyncSession, checker_bot: Bot):
+    if not is_admin(callback.from_user.id):
+        await callback.answer()
+        return
+    season_id = int(callback.data.split(":")[1])
+    season_repo = SeasonRepository(session)
+    season = await season_repo.get_by_id(season_id)
+    if not season:
+        await callback.answer("Сезон не найден.", show_alert=True)
+        return
+
+    channel = season.sponsor_channel_id or season.sponsor_channel
+    await callback.answer("⏳ Проверяю...", show_alert=False)
+
+    ok, channel_id = await verify_checker_bot_in_channel(checker_bot, channel)
+    if ok and channel_id:
+        await season_repo.set_sponsor_channel_id(season.id, channel_id)
+        await session.commit()
+        await callback.message.answer(
+            f"✅ Бот найден в канале! ID канала сохранён: <code>{channel_id}</code>\n\n"
+            f"Теперь можно активировать сезон.",
+            parse_mode="HTML",
+        )
+    else:
+        await callback.message.answer(
+            f"❌ Бот не найден в канале или не является администратором.\n\n"
+            f"Если канал приватный — используйте кнопку «🔗 Указать ID канала» и введите числовой ID.\n"
+            f"Получить ID: перешлите сообщение из канала боту @userinfobot",
+        )
+
+
+@router.callback_query(F.data.startswith("admin_season_setchannel:"))
+async def cb_admin_season_setchannel(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        await callback.answer()
+        return
+    season_id = int(callback.data.split(":")[1])
+    await state.update_data(season_id=season_id)
+    await callback.message.answer(
+        "Введите числовой <b>ID канала</b> (например: <code>-1001234567890</code>)\n\n"
+        "Получить ID: перешлите любое сообщение из канала боту @userinfobot",
+        parse_mode="HTML",
+    )
+    await state.set_state(AdminSeasonStates.set_channel_id)
+    await callback.answer()
+
+
+@router.message(AdminSeasonStates.set_channel_id)
+async def admin_season_set_channel_id(message: Message, state: FSMContext, session: AsyncSession, checker_bot: Bot):
+    if not is_admin(message.from_user.id):
+        return
+    text = message.text.strip() if message.text else ""
+    try:
+        channel_id = int(text)
+    except ValueError:
+        await message.answer("❌ Введите числовой ID, например: <code>-1001234567890</code>", parse_mode="HTML")
+        return
+
+    data = await state.get_data()
+    season_id = data["season_id"]
+    await state.clear()
+
+    season_repo = SeasonRepository(session)
+    await season_repo.set_sponsor_channel_id(season_id, channel_id)
+    await session.commit()
+
+    # Recheck with new ID
+    ok, verified_id = await verify_checker_bot_in_channel(checker_bot, channel_id)
+    if ok:
+        await message.answer(
+            f"✅ ID канала сохранён и бот подтверждён как администратор!\n\n"
+            f"Теперь активируйте сезон через /admin → Сезоны.",
+            reply_markup=admin_menu_keyboard(),
+        )
+    else:
+        await message.answer(
+            f"⚠️ ID канала <code>{channel_id}</code> сохранён.\n"
+            f"Но бот не подтверждён — убедитесь что @Invest_reinvest_bot добавлен администратором.",
+            parse_mode="HTML",
+            reply_markup=admin_menu_keyboard(),
+        )
+
+
 @router.callback_query(F.data.startswith("admin_season_activate:"))
 async def cb_admin_season_activate(callback: CallbackQuery, session: AsyncSession):
     if not is_admin(callback.from_user.id):

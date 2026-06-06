@@ -6,6 +6,7 @@ class AdminSeasonStates(StatesGroup):
     prize_name = State()
     prize_photo = State()
     sponsor_channel = State()
+    set_channel_id = State()
 
 class AdminWinnerStates(StatesGroup):
     upload_photo = State()

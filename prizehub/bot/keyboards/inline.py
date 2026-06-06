@@ -91,6 +91,8 @@ def admin_season_actions_keyboard(season_id: int, is_active: bool) -> InlineKeyb
     builder = InlineKeyboardBuilder()
     if not is_active:
         builder.row(InlineKeyboardButton(text="▶️ Активировать", callback_data=f"admin_season_activate:{season_id}"))
+    builder.row(InlineKeyboardButton(text="🔗 Указать ID канала", callback_data=f"admin_season_setchannel:{season_id}"))
+    builder.row(InlineKeyboardButton(text="🔄 Перепроверить бота в канале", callback_data=f"admin_season_recheck:{season_id}"))
     builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="admin_seasons"))
     return builder.as_markup()
 

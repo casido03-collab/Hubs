@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   bot:
     build: .
@@ -39,8 +37,7 @@ services:
     image: redis:7-alpine
     container_name: prizehub_redis
     restart: unless-stopped
-    command: >
-      sh -c "if [ -n '$$REDIS_PASSWORD' ]; then redis-server --requirepass $$REDIS_PASSWORD; else redis-server; fi"
+    command: redis-server
     volumes:
       - prizehub_redis_data:/data
     healthcheck:

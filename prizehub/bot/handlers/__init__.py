@@ -7,9 +7,11 @@ from .earn_tickets import router as earn_router
 from .rating import router as rating_router
 from .winners import router as winners_router
 from .profile import router as profile_router
+from .reset import router as reset_router
 from .admin import admin_router
 
 main_router = Router()
+main_router.include_router(reset_router)
 main_router.include_router(start_router)
 main_router.include_router(onboarding_router)
 main_router.include_router(subscription_router)

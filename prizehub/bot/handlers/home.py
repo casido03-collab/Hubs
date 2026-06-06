@@ -23,7 +23,8 @@ async def _home_text(session: AsyncSession, telegram_id: int) -> tuple[str, str 
         return "🏠 <b>Главное меню</b>\n\nСейчас нет активного сезона.", None, main_menu_keyboard()
 
     if not user or not user.is_subscribed:
-        sponsor_link = f"https://t.me/{season.sponsor_channel.lstrip('@')}"
+        from bot.services.channel_utils import build_sponsor_link
+        sponsor_link = build_sponsor_link(season.sponsor_channel)
         tz = pytz.timezone(settings.TIMEZONE)
         now = datetime.now(tz)
         end = season.end_date.astimezone(tz) if season.end_date.tzinfo else tz.localize(season.end_date)

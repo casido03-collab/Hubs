@@ -103,7 +103,8 @@ async def _show_subscribe_screen(message: Message, season):
         f"5️⃣ Выигрывайте призы"
     )
 
-    sponsor_link = f"https://t.me/{season.sponsor_channel.lstrip('@')}"
+    from bot.services.channel_utils import build_sponsor_link
+    sponsor_link = build_sponsor_link(season.sponsor_channel)
 
     if season.prize_photo_id:
         await message.answer_photo(

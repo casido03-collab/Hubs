@@ -58,7 +58,8 @@ async def process_interests(message: Message, state: FSMContext, session: AsyncS
             )
             return
 
-        sponsor_link = f"https://t.me/{season.sponsor_channel.lstrip('@')}"
+        from bot.services.channel_utils import build_sponsor_link
+        sponsor_link = build_sponsor_link(season.sponsor_channel)
         from datetime import datetime
         import pytz
         from bot.config import settings

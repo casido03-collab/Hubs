@@ -141,7 +141,7 @@ async def cb_home(callback: CallbackQuery, session: AsyncSession):
 async def cb_menu(callback: CallbackQuery, session: AsyncSession):
     user_repo = UserRepository(session)
     user = await user_repo.get_by_telegram_id(callback.from_user.id)
-    if not user or not user.is_subscribed:
+    if not sponsor_mode.user_has_access(user):
         await callback.message.answer("🏠 <b>Главное меню</b>", parse_mode="HTML", reply_markup=check_subscription_keyboard())
     else:
         await callback.message.answer("🏠 <b>Главное меню</b>", parse_mode="HTML", reply_markup=main_menu_keyboard())

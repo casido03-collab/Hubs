@@ -69,6 +69,13 @@ class SeasonRepository:
             .values(sponsor_channel_id=channel_id)
         )
 
+    async def update_sponsor_channel(self, season_id: int, channel: str) -> None:
+        await self.session.execute(
+            update(Season)
+            .where(Season.id == season_id)
+            .values(sponsor_channel=channel, sponsor_channel_id=None)
+        )
+
     async def set_prize_photo(self, season_id: int, photo_id: str) -> None:
         await self.session.execute(
             update(Season).where(Season.id == season_id).values(prize_photo_id=photo_id)

@@ -180,6 +180,67 @@ async def admin_season_sponsor(message: Message, state: FSMContext, session: Asy
         )
 
 
+@router.callback_query(F.data.startswith("admin_season_editchannel:"))
+async def cb_admin_season_editchannel(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        await callback.answer()
+        return
+    season_id = int(callback.data.split(":")[1])
+    await state.update_data(season_id=season_id)
+    await callback.message.answer(
+        "Введите новую <b>ссылку или @username канала спонсора</b>\n"
+        "Примеры:\n"
+        "• <code>@mychannel</code>\n"
+        "• <code>https://t.me/+C9qj4yn2NX43YzUy</code> (приватный канал)\n\n"
+        "⚠️ После смены канала потребуется повторная проверка бота.",
+        parse_mode="HTML",
+    )
+    await state.set_state(AdminSeasonStates.edit_sponsor_channel)
+    await callback.answer()
+
+
+@router.message(AdminSeasonStates.edit_sponsor_channel)
+async def admin_season_save_editchannel(message: Message, state: FSMContext, session: AsyncSession, checker_bot: Bot):
+    if not is_admin(message.from_user.id):
+        return
+    channel = message.text.strip() if message.text else ""
+    if not channel:
+        await message.answer("❌ Введите ссылку или @username канала.")
+        return
+
+    data = await state.get_data()
+    season_id = data["season_id"]
+    await state.clear()
+
+    season_repo = SeasonRepository(session)
+    # Save new channel, reset numeric ID so it gets re-verified
+    await season_repo.update_sponsor_channel(season_id, channel)
+    await session.commit()
+
+    await message.answer(
+        f"✅ Канал спонсора обновлён: <code>{channel}</code>\n\n"
+        f"Проверяю доступ бота в канале...",
+        parse_mode="HTML",
+    )
+
+    ok, channel_id = await verify_checker_bot_in_channel(checker_bot, channel)
+    if ok and channel_id:
+        await season_repo.set_sponsor_channel_id(season_id, channel_id)
+        await session.commit()
+        await message.answer(
+            "✅ Бот подтверждён в новом канале!\n\n"
+            "Канал спонсора успешно обновлён.",
+            reply_markup=admin_menu_keyboard(),
+        )
+    else:
+        await message.answer(
+            "⚠️ Канал сохранён, но бот не подтверждён.\n\n"
+            "Если канал приватный — добавьте @Invest_reinvest_bot администратором, "
+            "затем используйте «🔗 Указать ID канала» или «🔄 Перепроверить».",
+            reply_markup=admin_menu_keyboard(),
+        )
+
+
 @router.callback_query(F.data.startswith("admin_season_recheck:"))
 async def cb_admin_season_recheck(callback: CallbackQuery, session: AsyncSession, checker_bot: Bot):
     if not is_admin(callback.from_user.id):

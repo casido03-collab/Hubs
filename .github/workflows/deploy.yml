@@ -17,7 +17,9 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_PORT }}
           script: |
+            set -e
             cd /opt/prizehub
             git pull origin main
+            cd prizehub
             docker compose up -d --build --remove-orphans
             docker image prune -f

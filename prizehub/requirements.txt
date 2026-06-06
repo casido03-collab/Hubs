@@ -6,5 +6,5 @@ redis==5.2.1
 apscheduler==3.10.4
 pydantic-settings==2.6.1
 python-dotenv==1.0.1
-aiohttp==3.11.10
+aiohttp==3.10.11
 cachetools==5.5.0

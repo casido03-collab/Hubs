@@ -10,7 +10,7 @@ from bot.database import async_session_factory
 from bot.database.repositories import UserRepository, SeasonRepository
 from bot.database.repositories.raffle_repo import RaffleRepository
 from bot.services.raffle import RaffleService
-from bot.services.notifications import send_push, broadcast_out_of_turn
+from bot.services.notifications import send_push
 
 logger = logging.getLogger(__name__)
 
@@ -58,14 +58,7 @@ async def check_mini_raffles(bot: Bot) -> None:
                         except Exception as e:
                             logger.error(f"Failed to notify admin {admin_id}: {e}")
 
-                    # Broadcast
-                    await broadcast_out_of_turn(
-                        bot,
-                        f"🎁 <b>Мини-розыгрыш завершён!</b>\n\n"
-                        f"Приз: <b>{raffle.prize_amount} ₽</b>\n"
-                        f"Победитель: <b>{winner_name}</b>\n\n"
-                        f"Смотрите результаты в разделе «Победители»!",
-                    )
+                    # No auto-broadcast — admin will contact winner and publish manually
 
 
 async def check_season_end(bot: Bot) -> None:
@@ -106,13 +99,7 @@ async def check_season_end(bot: Bot) -> None:
                     except Exception as e:
                         logger.error(f"Failed to notify admin {admin_id}: {e}")
 
-                await broadcast_out_of_turn(
-                    bot,
-                    f"🏆 <b>Главный приз сезона #{season.number} разыгран!</b>\n\n"
-                    f"Приз: <b>{season.prize_name}</b>\n"
-                    f"Победитель: <b>{winner_name}</b>\n\n"
-                    f"Смотрите результаты в разделе «Победители»!",
-                )
+                    # No auto-broadcast — admin will contact winner and publish manually
 
 
 async def send_smart_pushes(bot: Bot) -> None:

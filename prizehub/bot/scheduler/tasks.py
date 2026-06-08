@@ -276,7 +276,8 @@ async def send_smart_pushes(bot: Bot) -> None:
 
         tz = pytz.timezone(settings.TIMEZONE)
         now = datetime.now(tz)
-        users = await user_repo.get_all_subscribed()
+        from bot.services.notifications import _broadcast_audience
+        users = await _broadcast_audience(session)
 
         end = season.end_date.astimezone(tz) if season.end_date.tzinfo else tz.localize(season.end_date)
         hours_to_end = (end - now).total_seconds() / 3600

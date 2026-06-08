@@ -101,3 +101,11 @@ class UserRepository:
             select(User).where(User.is_subscribed == True)
         )
         return list(result.scalars().all())
+
+    async def get_all_active(self) -> list[User]:
+        """All users who finished onboarding — used as broadcast audience in
+        white mode (sponsor off), where `is_subscribed` is meaningless."""
+        result = await self.session.execute(
+            select(User).where(User.onboarding_done == True)
+        )
+        return list(result.scalars().all())

@@ -7,6 +7,21 @@ from bot.config import settings
 from bot.database.repositories import UserRepository, SeasonRepository
 from bot.database.models import User, PushLog
 from bot.database import async_session_factory
+from bot.services import sponsor_mode
+
+
+async def _broadcast_audience(session: AsyncSession) -> list[User]:
+    """Who should receive broadcasts/smart-pushes.
+
+    When sponsor mode is required, only users who are actually subscribed
+    have access — broadcasting to others would be pointless/confusing.
+    In white mode (sponsor off), subscription is irrelevant — `is_subscribed`
+    may be False for everyone, so we broadcast to all onboarded users instead
+    (otherwise broadcasts silently reach nobody, including the admin)."""
+    user_repo = UserRepository(session)
+    if sponsor_mode.is_required():
+        return await user_repo.get_all_subscribed()
+    return await user_repo.get_all_active()
 
 
 async def _can_send_push(user: User) -> bool:
@@ -42,7 +57,7 @@ async def send_push(bot: Bot, user: User, text: str, session: AsyncSession, out_
 
 async def broadcast_out_of_turn(bot: Bot, text: str, exclude_telegram_id: int | None = None) -> None:
     async with async_session_factory() as session:
-        users = await UserRepository(session).get_all_subscribed()
+        users = await _broadcast_audience(session)
         for user in users:
             if exclude_telegram_id and user.telegram_id == exclude_telegram_id:
                 continue

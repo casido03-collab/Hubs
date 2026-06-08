@@ -9,9 +9,9 @@ def subscribe_keyboard(sponsor_link: str) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def check_subscription_keyboard() -> InlineKeyboardMarkup:
+def check_subscription_keyboard(sponsor_link: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="🔗 Подписаться", callback_data="open_sponsor"))
+    builder.row(InlineKeyboardButton(text="🔗 Подписаться", url=sponsor_link))
     builder.row(InlineKeyboardButton(text="✅ Проверить подписку", callback_data="check_subscription"))
     return builder.as_markup()
 

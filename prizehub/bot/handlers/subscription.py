@@ -6,7 +6,6 @@ from bot.database.repositories import UserRepository, SeasonRepository
 from bot.keyboards import main_menu_keyboard, subscribe_keyboard, main_reply_keyboard
 from bot.services.subscription import check_subscription
 from bot.services.tickets import TicketService
-from bot.services.channel_utils import build_sponsor_link
 
 router = Router()
 
@@ -71,14 +70,3 @@ async def cb_check_subscription(callback: CallbackQuery, session: AsyncSession, 
             "🏠 Главное меню — выберите раздел:",
             reply_markup=main_reply_keyboard(),
         )
-
-
-@router.callback_query(F.data == "open_sponsor")
-async def cb_open_sponsor(callback: CallbackQuery, session: AsyncSession):
-    season_repo = SeasonRepository(session)
-    season = await season_repo.get_active()
-    if season:
-        link = build_sponsor_link(season.sponsor_channel)
-        await callback.answer(url=link)
-    else:
-        await callback.answer("Нет активного сезона.", show_alert=True)

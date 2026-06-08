@@ -40,7 +40,7 @@ async def _home_text(session: AsyncSession, telegram_id: int) -> tuple[str, str 
             f"👥 Уже участвуют: <b>{count:,}</b> чел.\n\n"
             f"⚠️ Для участия необходимо подписаться на канал спонсора."
         )
-        return text, season.prize_photo_id, check_subscription_keyboard()
+        return text, season.prize_photo_id, check_subscription_keyboard(sponsor_link)
 
     sp = await season_repo.get_participant(user.id, season.id)
     tickets = sp.tickets if sp else 0
@@ -142,7 +142,11 @@ async def cb_menu(callback: CallbackQuery, session: AsyncSession):
     user_repo = UserRepository(session)
     user = await user_repo.get_by_telegram_id(callback.from_user.id)
     if not sponsor_mode.user_has_access(user):
-        await callback.message.answer("🏠 <b>Главное меню</b>", parse_mode="HTML", reply_markup=check_subscription_keyboard())
+        season_repo = SeasonRepository(session)
+        season = await season_repo.get_active()
+        from bot.services.channel_utils import build_sponsor_link
+        sponsor_link = build_sponsor_link(season.sponsor_channel) if season else "https://t.me/"
+        await callback.message.answer("🏠 <b>Главное меню</b>", parse_mode="HTML", reply_markup=check_subscription_keyboard(sponsor_link))
     else:
         await callback.message.answer("🏠 <b>Главное меню</b>", parse_mode="HTML", reply_markup=main_menu_keyboard())
     await callback.answer()

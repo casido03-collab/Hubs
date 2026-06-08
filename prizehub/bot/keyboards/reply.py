@@ -36,7 +36,8 @@ def main_reply_keyboard() -> ReplyKeyboardMarkup:
     builder.button(text="🏆 Рейтинг")
     builder.button(text="🏅 Победители")
     builder.button(text="👤 Профиль")
-    builder.adjust(1, 2, 2)
+    builder.button(text="ℹ️ О розыгрыше")
+    builder.adjust(1, 2, 2, 1)
     return builder.as_markup(resize_keyboard=True)
 
 

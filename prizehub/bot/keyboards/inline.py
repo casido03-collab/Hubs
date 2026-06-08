@@ -5,6 +5,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 def subscribe_keyboard(sponsor_link: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="📢 Подписаться на спонсора", url=sponsor_link))
+    builder.row(InlineKeyboardButton(text="ℹ️ Как участвовать", callback_data="about_raffle"))
     builder.row(InlineKeyboardButton(text="✅ Я подписался", callback_data="check_subscription"))
     return builder.as_markup()
 

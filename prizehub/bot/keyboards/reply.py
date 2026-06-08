@@ -1,6 +1,7 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 from bot.constants import AGE_RANGES, GENDERS, INTERESTS
+from bot.services import sponsor_mode
 
 
 def age_keyboard() -> ReplyKeyboardMarkup:
@@ -29,15 +30,22 @@ def interests_keyboard() -> ReplyKeyboardMarkup:
 
 
 def main_reply_keyboard() -> ReplyKeyboardMarkup:
-    """Persistent keyboard for subscribed users."""
+    """Persistent keyboard for subscribed users.
+
+    "О розыгрыше" explains the sponsor-subscription mechanics, so it only
+    makes sense (and is only shown) when sponsor mode is actually required —
+    hidden in white mode."""
     builder = ReplyKeyboardBuilder()
     builder.button(text="🏠 Главная")
     builder.button(text="🎫 Заработать билеты")
     builder.button(text="🏆 Рейтинг")
     builder.button(text="🏅 Победители")
     builder.button(text="👤 Профиль")
-    builder.button(text="ℹ️ О розыгрыше")
-    builder.adjust(1, 2, 2, 1)
+    if sponsor_mode.is_required():
+        builder.button(text="ℹ️ О розыгрыше")
+        builder.adjust(1, 2, 2, 1)
+    else:
+        builder.adjust(1, 2, 2)
     return builder.as_markup(resize_keyboard=True)
 
 

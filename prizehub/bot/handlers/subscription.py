@@ -61,7 +61,7 @@ async def cb_check_subscription(callback: CallbackQuery, session: AsyncSession, 
 
 
 @router.callback_query(F.data == "confirm_bot_launch")
-async def cb_confirm_bot_launch(callback: CallbackQuery, session, bot: Bot):
+async def cb_confirm_bot_launch(callback: CallbackQuery, session: AsyncSession, bot: Bot):
     """'Я запустил' — trust-based access grant when sponsor_type is 'bot'."""
     user_repo = UserRepository(session)
     season_repo = SeasonRepository(session)

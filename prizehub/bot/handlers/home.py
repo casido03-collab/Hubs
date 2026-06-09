@@ -101,7 +101,10 @@ async def msg_home(message: Message, session: AsyncSession, checker_bot: Bot):
         season = await season_repo.get_active()
         if season:
             channel_id = season.sponsor_channel_id or season.sponsor_channel
-            still_subscribed = await check_subscription(checker_bot, channel_id, message.from_user.id)
+            try:
+                still_subscribed = await check_subscription(checker_bot, channel_id, message.from_user.id)
+            except Exception:
+                still_subscribed = True  # API error — assume still subscribed, don't punish user
             if not still_subscribed:
                 await user_repo.set_subscribed(user.id, False)
                 await session.commit()

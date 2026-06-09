@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import random
 import uuid
@@ -237,8 +238,9 @@ async def recheck_subscriptions(bot: Bot, checker_bot: Bot) -> None:
         for user in users:
             try:
                 still_subscribed = await check_subscription(checker_bot, channel_id, user.telegram_id)
+                await asyncio.sleep(0.05)  # stay well under Telegram rate limits
             except Exception as e:
-                logger.warning(f"recheck_subscriptions: error checking user {user.telegram_id}: {e}")
+                logger.warning(f"recheck_subscriptions: error checking user {user.telegram_id}: {e} — skipping (access preserved)")
                 continue
 
             if not still_subscribed:

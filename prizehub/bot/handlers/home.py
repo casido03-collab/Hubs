@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.config import settings
 from bot.database.repositories import UserRepository, SeasonRepository
 from bot.database.repositories.raffle_repo import RaffleRepository
-from bot.keyboards import home_keyboard, main_menu_keyboard, subscribe_keyboard, check_subscription_keyboard, pre_subscribe_reply_keyboard
+from bot.keyboards import home_keyboard, main_menu_keyboard, subscribe_keyboard, check_subscription_keyboard, check_bot_keyboard, pre_subscribe_reply_keyboard
 from bot.services.subscription import check_subscription
 from bot.services import sponsor_mode
 
@@ -26,21 +26,44 @@ async def _home_text(session: AsyncSession, telegram_id: int) -> tuple[str, str 
         return "🏠 <b>Главное меню</b>\n\nСейчас нет активного сезона.", None, main_menu_keyboard()
 
     if not sponsor_mode.user_has_access(user):
-        from bot.services.channel_utils import build_sponsor_link
-        sponsor_link = build_sponsor_link(season.sponsor_channel)
         tz = pytz.timezone(settings.TIMEZONE)
         now = datetime.now(tz)
         end = season.end_date.astimezone(tz) if season.end_date.tzinfo else tz.localize(season.end_date)
         days_left = max(0, (end.date() - now.date()).days)
         count = await season_repo.participants_count(season.id)
-        text = (
-            f"🏆 <b>Главный приз сезона</b>\n"
-            f"🚗 <b>{season.prize_name}</b>\n\n"
-            f"⏳ До розыгрыша: <b>{days_left} дн.</b>\n"
-            f"👥 Уже участвуют: <b>{count:,}</b> чел.\n\n"
-            f"⚠️ Для участия необходимо подписаться на канал спонсора."
-        )
-        return text, season.prize_photo_id, check_subscription_keyboard(sponsor_link)
+
+        if season.sponsor_type == "bot":
+            from bot.services.channel_utils import build_sponsor_link
+            bot_link = build_sponsor_link(season.sponsor_bot or "")
+            text = (
+                f"🏆 <b>Главный приз сезона</b>\n"
+                f"🚗 <b>{season.prize_name}</b>\n\n"
+                f"⏳ До розыгрыша: <b>{days_left} дн.</b>\n"
+                f"👥 Уже участвуют: <b>{count:,}</b> чел.\n\n"
+                f"Как принять участие:\n"
+                f"1️⃣ Запустите бота спонсора\n"
+                f"2️⃣ Подтвердите запуск\n"
+                f"3️⃣ Получайте билеты\n"
+                f"4️⃣ Поднимайтесь в рейтинге\n"
+                f"5️⃣ Выигрывайте призы"
+            )
+            return text, season.prize_photo_id, check_bot_keyboard(bot_link)
+        else:
+            from bot.services.channel_utils import build_sponsor_link
+            sponsor_link = build_sponsor_link(season.sponsor_channel or "")
+            text = (
+                f"🏆 <b>Главный приз сезона</b>\n"
+                f"🚗 <b>{season.prize_name}</b>\n\n"
+                f"⏳ До розыгрыша: <b>{days_left} дн.</b>\n"
+                f"👥 Уже участвуют: <b>{count:,}</b> чел.\n\n"
+                f"Как принять участие:\n"
+                f"1️⃣ Подпишитесь на канал спонсора\n"
+                f"2️⃣ Подтвердите подписку\n"
+                f"3️⃣ Получайте билеты\n"
+                f"4️⃣ Поднимайтесь в рейтинге\n"
+                f"5️⃣ Выигрывайте призы"
+            )
+            return text, season.prize_photo_id, check_subscription_keyboard(sponsor_link)
 
     sp = await season_repo.get_participant(user.id, season.id)
     tickets = sp.tickets if sp else 0
@@ -148,8 +171,12 @@ async def cb_menu(callback: CallbackQuery, session: AsyncSession):
         season_repo = SeasonRepository(session)
         season = await season_repo.get_active()
         from bot.services.channel_utils import build_sponsor_link
-        sponsor_link = build_sponsor_link(season.sponsor_channel) if season else "https://t.me/"
-        await callback.message.answer("🏠 <b>Главное меню</b>", parse_mode="HTML", reply_markup=check_subscription_keyboard(sponsor_link))
+        if season and season.sponsor_type == "bot":
+            bot_link = build_sponsor_link(season.sponsor_bot or "")
+            await callback.message.answer("🏠 <b>Главное меню</b>", parse_mode="HTML", reply_markup=check_bot_keyboard(bot_link))
+        else:
+            sponsor_link = build_sponsor_link(season.sponsor_channel or "") if season else "https://t.me/"
+            await callback.message.answer("🏠 <b>Главное меню</b>", parse_mode="HTML", reply_markup=check_subscription_keyboard(sponsor_link))
     else:
         await callback.message.answer("🏠 <b>Главное меню</b>", parse_mode="HTML", reply_markup=main_menu_keyboard())
     await callback.answer()

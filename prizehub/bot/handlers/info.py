@@ -1,10 +1,12 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
+from sqlalchemy.ext.asyncio import AsyncSession
+from bot.database.repositories import SeasonRepository
 from bot.keyboards import back_to_menu
 
 router = Router()
 
-ABOUT_RAFFLE_TEXT = (
+_ABOUT_BASE = (
     "ℹ️ <b>О розыгрыше PrizeHub</b>\n\n"
     "🏆 <b>Главный приз сезона</b>\n"
     "Каждый сезон длится 21 день. Победитель — участник с "
@@ -21,30 +23,41 @@ ABOUT_RAFFLE_TEXT = (
     "• Пригласить друга — до 600 билетов\n"
     "• Пригласить 5 друзей — +2 000 билетов\n"
     "• Пригласить 20 друзей — +10 000 билетов\n\n"
+)
+
+_CONDITIONS_CHANNEL = (
     "📋 <b>Условия участия:</b>\n"
     "• Подпишитесь на канал спонсора\n"
     "• Оставайтесь подписаны весь сезон\n"
     "• Отписка = потеря доступа к розыгрышу"
 )
 
+_CONDITIONS_BOT = (
+    "📋 <b>Условия участия:</b>\n"
+    "• Запустите бота спонсора\n"
+    "• Подтвердите запуск кнопкой «Я запустил»\n"
+    "• Оставайтесь активны в боте спонсора"
+)
+
+
+async def _about_text(session: AsyncSession) -> str:
+    season_repo = SeasonRepository(session)
+    season = await season_repo.get_active()
+    conditions = _CONDITIONS_BOT if (season and season.sponsor_type == "bot") else _CONDITIONS_CHANNEL
+    return _ABOUT_BASE + conditions
+
 
 @router.callback_query(F.data == "about_raffle")
-async def cb_about_raffle(callback: CallbackQuery):
+async def cb_about_raffle(callback: CallbackQuery, session: AsyncSession):
+    text = await _about_text(session)
     try:
-        await callback.message.edit_text(
-            ABOUT_RAFFLE_TEXT,
-            parse_mode="HTML",
-            reply_markup=back_to_menu(),
-        )
+        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=back_to_menu())
     except Exception:
-        await callback.message.answer(
-            ABOUT_RAFFLE_TEXT,
-            parse_mode="HTML",
-            reply_markup=back_to_menu(),
-        )
+        await callback.message.answer(text, parse_mode="HTML", reply_markup=back_to_menu())
     await callback.answer()
 
 
 @router.message(F.text == "ℹ️ О розыгрыше")
-async def msg_about_raffle(message: Message):
-    await message.answer(ABOUT_RAFFLE_TEXT, parse_mode="HTML")
+async def msg_about_raffle(message: Message, session: AsyncSession):
+    text = await _about_text(session)
+    await message.answer(text, parse_mode="HTML")

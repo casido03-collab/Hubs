@@ -27,16 +27,20 @@ class SeasonRepository:
         name: str,
         prize_name: str,
         prize_photo_id: str | None,
-        sponsor_channel: str,
         start_date,
         end_date,
+        sponsor_type: str = "channel",
+        sponsor_channel: str | None = None,
+        sponsor_bot: str | None = None,
     ) -> Season:
         season = Season(
             number=number,
             name=name,
             prize_name=prize_name,
             prize_photo_id=prize_photo_id,
+            sponsor_type=sponsor_type,
             sponsor_channel=sponsor_channel,
+            sponsor_bot=sponsor_bot,
             start_date=start_date,
             end_date=end_date,
             status="pending",
@@ -73,7 +77,24 @@ class SeasonRepository:
         await self.session.execute(
             update(Season)
             .where(Season.id == season_id)
-            .values(sponsor_channel=channel, sponsor_channel_id=None)
+            .values(
+                sponsor_type="channel",
+                sponsor_channel=channel,
+                sponsor_channel_id=None,
+                sponsor_bot=None,
+            )
+        )
+
+    async def update_sponsor_bot(self, season_id: int, bot_username: str) -> None:
+        await self.session.execute(
+            update(Season)
+            .where(Season.id == season_id)
+            .values(
+                sponsor_type="bot",
+                sponsor_bot=bot_username,
+                sponsor_channel=None,
+                sponsor_channel_id=None,
+            )
         )
 
     async def set_prize_photo(self, season_id: int, photo_id: str) -> None:

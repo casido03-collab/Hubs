@@ -65,11 +65,16 @@ async def cb_admin_season_detail(callback: CallbackQuery, session: AsyncSession)
     start_str = season.start_date.astimezone(tz).strftime("%d.%m.%Y") if season.start_date else "—"
     end_str = season.end_date.astimezone(tz).strftime("%d.%m.%Y") if season.end_date else "—"
 
+    if season.sponsor_type == "bot":
+        sponsor_str = f"🤖 Бот: {season.sponsor_bot or '—'}"
+    else:
+        sponsor_str = f"📺 Канал: {season.sponsor_channel or '—'}"
+
     text = (
         f"🏆 <b>Сезон #{season.number}</b>\n\n"
         f"Название: {season.name}\n"
         f"Приз: {season.prize_name}\n"
-        f"Спонсор: {season.sponsor_channel}\n"
+        f"Спонсор: {sponsor_str}\n"
         f"Начало: {start_str}\n"
         f"Конец: {end_str}\n"
         f"Статус: {season.status}"
@@ -77,7 +82,7 @@ async def cb_admin_season_detail(callback: CallbackQuery, session: AsyncSession)
 
     await callback.message.edit_text(
         text, parse_mode="HTML",
-        reply_markup=admin_season_actions_keyboard(season_id, season.is_active),
+        reply_markup=admin_season_actions_keyboard(season_id, season.is_active, season.sponsor_type),
     )
     await callback.answer()
 
@@ -121,11 +126,42 @@ async def admin_season_prize_photo(message: Message, state: FSMContext):
         await message.answer("Отправьте фото или напишите «-».")
         return
     await state.update_data(prize_photo_id=photo_id)
-    await message.answer(
-        "Введите <b>ссылку или @username канала спонсора</b> (например: @mychannel):",
-        parse_mode="HTML",
+
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from aiogram.types import InlineKeyboardButton
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="📺 Канал", callback_data="season_type:channel"),
+        InlineKeyboardButton(text="🤖 Бот", callback_data="season_type:bot"),
     )
-    await state.set_state(AdminSeasonStates.sponsor_channel)
+    await message.answer(
+        "Выберите <b>тип спонсора</b>:",
+        parse_mode="HTML",
+        reply_markup=builder.as_markup(),
+    )
+    await state.set_state(AdminSeasonStates.sponsor_type)
+
+
+@router.callback_query(F.data.startswith("season_type:"), AdminSeasonStates.sponsor_type)
+async def admin_season_choose_type(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        await callback.answer()
+        return
+    chosen = callback.data.split(":")[1]
+    await state.update_data(sponsor_type=chosen)
+    if chosen == "channel":
+        await callback.message.answer(
+            "Введите <b>ссылку или @username канала спонсора</b> (например: @mychannel):",
+            parse_mode="HTML",
+        )
+        await state.set_state(AdminSeasonStates.sponsor_channel)
+    else:
+        await callback.message.answer(
+            "Введите <b>@username бота-спонсора</b> (например: @InvestBot):",
+            parse_mode="HTML",
+        )
+        await state.set_state(AdminSeasonStates.sponsor_bot)
+    await callback.answer()
 
 
 @router.message(AdminSeasonStates.sponsor_channel)
@@ -141,17 +177,16 @@ async def admin_season_sponsor(message: Message, state: FSMContext, session: Asy
 
     tz = pytz.timezone(settings.TIMEZONE)
     now = datetime.now(tz)
-    start_date = now
-    end_date = now + timedelta(days=SEASON_DURATION_DAYS)
 
     season = await season_repo.create(
         number=number,
         name=data["name"],
         prize_name=data["prize_name"],
         prize_photo_id=data.get("prize_photo_id"),
+        sponsor_type="channel",
         sponsor_channel=channel,
-        start_date=start_date,
-        end_date=end_date,
+        start_date=now,
+        end_date=now + timedelta(days=SEASON_DURATION_DAYS),
     )
     await session.commit()
 
@@ -178,6 +213,43 @@ async def admin_season_sponsor(message: Message, state: FSMContext, session: Asy
             f"Добавьте его и проверьте через детали сезона.",
             reply_markup=admin_menu_keyboard(),
         )
+
+
+@router.message(AdminSeasonStates.sponsor_bot)
+async def admin_season_sponsor_bot(message: Message, state: FSMContext, session: AsyncSession):
+    if not is_admin(message.from_user.id):
+        return
+    bot_username = message.text.strip()
+    if not bot_username.startswith("@"):
+        bot_username = "@" + bot_username
+    data = await state.get_data()
+    await state.clear()
+
+    season_repo = SeasonRepository(session)
+    number = await season_repo.next_number()
+
+    tz = pytz.timezone(settings.TIMEZONE)
+    now = datetime.now(tz)
+
+    await season_repo.create(
+        number=number,
+        name=data["name"],
+        prize_name=data["prize_name"],
+        prize_photo_id=data.get("prize_photo_id"),
+        sponsor_type="bot",
+        sponsor_bot=bot_username,
+        start_date=now,
+        end_date=now + timedelta(days=SEASON_DURATION_DAYS),
+    )
+    await session.commit()
+
+    await message.answer(
+        f"✅ Сезон <b>#{number}</b> создан со спонсором-ботом {bot_username}!\n\n"
+        f"Участие на доверии — пользователи нажимают «Я запустил» без проверки.\n\n"
+        f"Активируйте сезон в /admin → Сезоны → #{number}",
+        parse_mode="HTML",
+        reply_markup=admin_menu_keyboard(),
+    )
 
 
 @router.callback_query(F.data.startswith("admin_season_editchannel:"))
@@ -323,6 +395,80 @@ async def admin_season_set_channel_id(message: Message, state: FSMContext, sessi
             parse_mode="HTML",
             reply_markup=admin_menu_keyboard(),
         )
+
+
+@router.callback_query(F.data.startswith("admin_season_editsponsor:"))
+async def cb_admin_season_editsponsor(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        await callback.answer()
+        return
+    season_id = int(callback.data.split(":")[1])
+    await state.update_data(season_id=season_id)
+
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from aiogram.types import InlineKeyboardButton
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="📺 Канал", callback_data="edit_sponsor_type:channel"),
+        InlineKeyboardButton(text="🤖 Бот", callback_data="edit_sponsor_type:bot"),
+    )
+    await callback.message.answer(
+        "Выберите <b>новый тип спонсора</b>:\n\n"
+        "⚠️ Доступ уже подтверждённых пользователей сохраняется.",
+        parse_mode="HTML",
+        reply_markup=builder.as_markup(),
+    )
+    await state.set_state(AdminSeasonStates.edit_sponsor_type)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("edit_sponsor_type:"), AdminSeasonStates.edit_sponsor_type)
+async def admin_season_edit_sponsor_type(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        await callback.answer()
+        return
+    chosen = callback.data.split(":")[1]
+    await state.update_data(new_sponsor_type=chosen)
+    if chosen == "channel":
+        await callback.message.answer(
+            "Введите новую <b>ссылку или @username канала спонсора</b>:",
+            parse_mode="HTML",
+        )
+        await state.set_state(AdminSeasonStates.edit_sponsor_channel)
+    else:
+        await callback.message.answer(
+            "Введите <b>@username бота-спонсора</b> (например: @InvestBot):",
+            parse_mode="HTML",
+        )
+        await state.set_state(AdminSeasonStates.edit_sponsor_bot)
+    await callback.answer()
+
+
+@router.message(AdminSeasonStates.edit_sponsor_bot)
+async def admin_season_save_edit_sponsor_bot(message: Message, state: FSMContext, session: AsyncSession):
+    if not is_admin(message.from_user.id):
+        return
+    bot_username = message.text.strip() if message.text else ""
+    if not bot_username:
+        await message.answer("❌ Введите @username бота.")
+        return
+    if not bot_username.startswith("@"):
+        bot_username = "@" + bot_username
+
+    data = await state.get_data()
+    season_id = data["season_id"]
+    await state.clear()
+
+    season_repo = SeasonRepository(session)
+    await season_repo.update_sponsor_bot(season_id, bot_username)
+    await session.commit()
+
+    await message.answer(
+        f"✅ Спонсор изменён на бота <b>{bot_username}</b>\n\n"
+        f"Участники теперь получают доступ нажав «Я запустил» без проверки.",
+        parse_mode="HTML",
+        reply_markup=admin_menu_keyboard(),
+    )
 
 
 @router.callback_query(F.data.startswith("admin_season_activate:"))

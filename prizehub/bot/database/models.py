@@ -44,8 +44,10 @@ class Season(Base):
     name = Column(String(256), nullable=False)
     prize_name = Column(String(256), nullable=False)
     prize_photo_id = Column(String(256), nullable=True)
-    sponsor_channel = Column(String(256), nullable=False)
+    sponsor_type = Column(String(16), nullable=False, default="channel")  # channel / bot
+    sponsor_channel = Column(String(256), nullable=True)   # used when sponsor_type="channel"
     sponsor_channel_id = Column(BigInteger, nullable=True)
+    sponsor_bot = Column(String(256), nullable=True)        # used when sponsor_type="bot"
     start_date = Column(DateTime(timezone=True), nullable=False)
     end_date = Column(DateTime(timezone=True), nullable=False)
     is_active = Column(Boolean, default=False, index=True)

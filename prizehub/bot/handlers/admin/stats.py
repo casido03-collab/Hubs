@@ -39,6 +39,11 @@ async def cb_admin_stats(callback: CallbackQuery, session: AsyncSession):
     )
     subscribed = subscribed_result.scalar_one()
     conversion = f"{subscribed / total_users * 100:.1f}%" if total_users > 0 else "0%"
+    subscribed_label = (
+        "🤖 Запустили бота спонсора"
+        if season and season.sponsor_type == "bot"
+        else "📢 Подписаны на спонсора"
+    )
 
     # Ticket stats
     ticket_total = 0
@@ -59,7 +64,7 @@ async def cb_admin_stats(callback: CallbackQuery, session: AsyncSession):
         f"🆕 Новых за сутки: <b>{new_today:,}</b>\n\n"
         f"🏆 Активный сезон: <b>{season_info}</b>\n"
         f"🎯 Участников сезона: <b>{participants:,}</b>\n"
-        f"📢 Подписаны на спонсора: <b>{subscribed:,}</b>\n"
+        f"{subscribed_label}: <b>{subscribed:,}</b>\n"
         f"📈 Конверсия в подписку: <b>{conversion}</b>\n\n"
         f"🎫 Билетов выдано в сезоне: <b>{ticket_total:,}</b>\n"
         f"👥 Всего рефералов: <b>{ref_total:,}</b>"

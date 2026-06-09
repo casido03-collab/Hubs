@@ -3,6 +3,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
 def subscribe_keyboard(sponsor_link: str) -> InlineKeyboardMarkup:
+    """Pre-access screen keyboard when sponsor is a channel."""
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="📢 Подписаться на спонсора", url=sponsor_link))
     builder.row(InlineKeyboardButton(text="ℹ️ Как участвовать", callback_data="about_raffle"))
@@ -10,10 +11,28 @@ def subscribe_keyboard(sponsor_link: str) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def bot_subscribe_keyboard(bot_link: str) -> InlineKeyboardMarkup:
+    """Pre-access screen keyboard when sponsor is a bot."""
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="🤖 Запустить бота спонсора", url=bot_link))
+    builder.row(InlineKeyboardButton(text="ℹ️ Как участвовать", callback_data="about_raffle"))
+    builder.row(InlineKeyboardButton(text="✅ Я запустил", callback_data="confirm_bot_launch"))
+    return builder.as_markup()
+
+
 def check_subscription_keyboard(sponsor_link: str) -> InlineKeyboardMarkup:
+    """Home/menu re-prompt keyboard when sponsor is a channel."""
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="🔗 Подписаться", url=sponsor_link))
     builder.row(InlineKeyboardButton(text="✅ Проверить подписку", callback_data="check_subscription"))
+    return builder.as_markup()
+
+
+def check_bot_keyboard(bot_link: str) -> InlineKeyboardMarkup:
+    """Home/menu re-prompt keyboard when sponsor is a bot."""
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="🤖 Запустить бота спонсора", url=bot_link))
+    builder.row(InlineKeyboardButton(text="✅ Я запустил", callback_data="confirm_bot_launch"))
     return builder.as_markup()
 
 
@@ -88,13 +107,20 @@ def admin_menu_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def admin_season_actions_keyboard(season_id: int, is_active: bool) -> InlineKeyboardMarkup:
+def admin_season_actions_keyboard(
+    season_id: int,
+    is_active: bool,
+    sponsor_type: str = "channel",
+) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     if not is_active:
         builder.row(InlineKeyboardButton(text="▶️ Активировать", callback_data=f"admin_season_activate:{season_id}"))
-    builder.row(InlineKeyboardButton(text="✏️ Изменить канал спонсора", callback_data=f"admin_season_editchannel:{season_id}"))
-    builder.row(InlineKeyboardButton(text="🔗 Указать ID канала", callback_data=f"admin_season_setchannel:{season_id}"))
-    builder.row(InlineKeyboardButton(text="🔄 Перепроверить бота в канале", callback_data=f"admin_season_recheck:{season_id}"))
+    # Sponsor edit — always available
+    builder.row(InlineKeyboardButton(text="🔄 Сменить спонсора", callback_data=f"admin_season_editsponsor:{season_id}"))
+    # Channel-only tools
+    if sponsor_type == "channel":
+        builder.row(InlineKeyboardButton(text="🔗 Указать ID канала", callback_data=f"admin_season_setchannel:{season_id}"))
+        builder.row(InlineKeyboardButton(text="🔄 Перепроверить бота в канале", callback_data=f"admin_season_recheck:{season_id}"))
     builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="admin_seasons"))
     return builder.as_markup()
 

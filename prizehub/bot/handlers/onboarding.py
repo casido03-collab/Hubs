@@ -4,7 +4,7 @@ from aiogram.types import Message, ReplyKeyboardRemove
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.constants import AGE_RANGES, GENDERS, INTERESTS
 from bot.database.repositories import UserRepository, SeasonRepository
-from bot.keyboards import gender_keyboard, interests_keyboard, subscribe_keyboard, main_menu_keyboard, pre_subscribe_reply_keyboard, main_reply_keyboard
+from bot.keyboards import gender_keyboard, interests_keyboard, subscribe_keyboard, bot_subscribe_keyboard, main_menu_keyboard, pre_subscribe_reply_keyboard, main_reply_keyboard
 from bot.services import sponsor_mode
 from bot.states import OnboardingStates
 
@@ -68,7 +68,6 @@ async def process_interests(message: Message, state: FSMContext, session: AsyncS
             return
 
         from bot.services.channel_utils import build_sponsor_link
-        sponsor_link = build_sponsor_link(season.sponsor_channel)
         from datetime import datetime
         import pytz
         from bot.config import settings
@@ -76,38 +75,48 @@ async def process_interests(message: Message, state: FSMContext, session: AsyncS
         now = datetime.now(tz)
         end = season.end_date.astimezone(tz) if season.end_date.tzinfo else tz.localize(season.end_date)
         days_left = max(0, (end.date() - now.date()).days)
-
-        # Count participants
         count = await season_repo.participants_count(season.id)
 
-        text = (
-            f"🏆 <b>Главный приз сезона</b>\n"
-            f"🚗 <b>{season.prize_name}</b>\n\n"
-            f"⏳ До розыгрыша: <b>{days_left} дн.</b>\n"
-            f"👥 Уже участвуют: <b>{count:,}</b> чел.\n\n"
-            f"Как принять участие:\n"
-            f"1️⃣ Подпишитесь на канал спонсора\n"
-            f"2️⃣ Подтвердите подписку\n"
-            f"3️⃣ Получайте билеты\n"
-            f"4️⃣ Поднимайтесь в рейтинге\n"
-            f"5️⃣ Выигрывайте призы"
-        )
-
-        # Set persistent reply keyboard so user can browse open sections before subscribing
         await message.answer(
             "✅ Отлично! Профиль заполнен.\n\n👇 Вы можете просмотреть доступные разделы:",
             reply_markup=pre_subscribe_reply_keyboard(),
         )
 
-        if season.prize_photo_id:
-            await message.answer_photo(
-                photo=season.prize_photo_id,
-                caption=text,
-                parse_mode="HTML",
-                reply_markup=subscribe_keyboard(sponsor_link),
+        if season.sponsor_type == "bot":
+            bot_link = build_sponsor_link(season.sponsor_bot or "")
+            text = (
+                f"🏆 <b>Главный приз сезона</b>\n"
+                f"🚗 <b>{season.prize_name}</b>\n\n"
+                f"⏳ До розыгрыша: <b>{days_left} дн.</b>\n"
+                f"👥 Уже участвуют: <b>{count:,}</b> чел.\n\n"
+                f"Как принять участие:\n"
+                f"1️⃣ Запустите бота спонсора\n"
+                f"2️⃣ Подтвердите запуск\n"
+                f"3️⃣ Получайте билеты\n"
+                f"4️⃣ Поднимайтесь в рейтинге\n"
+                f"5️⃣ Выигрывайте призы"
             )
+            kb = bot_subscribe_keyboard(bot_link)
         else:
-            await message.answer(text, parse_mode="HTML", reply_markup=subscribe_keyboard(sponsor_link))
+            sponsor_link = build_sponsor_link(season.sponsor_channel or "")
+            text = (
+                f"🏆 <b>Главный приз сезона</b>\n"
+                f"🚗 <b>{season.prize_name}</b>\n\n"
+                f"⏳ До розыгрыша: <b>{days_left} дн.</b>\n"
+                f"👥 Уже участвуют: <b>{count:,}</b> чел.\n\n"
+                f"Как принять участие:\n"
+                f"1️⃣ Подпишитесь на канал спонсора\n"
+                f"2️⃣ Подтвердите подписку\n"
+                f"3️⃣ Получайте билеты\n"
+                f"4️⃣ Поднимайтесь в рейтинге\n"
+                f"5️⃣ Выигрывайте призы"
+            )
+            kb = subscribe_keyboard(sponsor_link)
+
+        if season.prize_photo_id:
+            await message.answer_photo(photo=season.prize_photo_id, caption=text, parse_mode="HTML", reply_markup=kb)
+        else:
+            await message.answer(text, parse_mode="HTML", reply_markup=kb)
         return
 
     if message.text in INTERESTS:

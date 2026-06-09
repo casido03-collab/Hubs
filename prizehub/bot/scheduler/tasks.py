@@ -227,6 +227,10 @@ async def recheck_subscriptions(bot: Bot, checker_bot: Bot) -> None:
         if not season:
             return
 
+        if season.sponsor_type == "bot":
+            logger.info("recheck_subscriptions: skipped (sponsor is a bot — trust-based, no API check).")
+            return
+
         channel_id = season.sponsor_channel_id or season.sponsor_channel
         if not channel_id:
             logger.warning("recheck_subscriptions: no channel_id configured for active season.")

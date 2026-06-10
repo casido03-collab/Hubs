@@ -17,9 +17,20 @@ from bot.states import AdminPushStates
 router = Router()
 
 _PUSH_LABELS = {
-    "regular":    "📅 Умные пуши",
-    "broadcast":  "📣 Broadcast (розыгрыш)",
-    "out_of_turn": "⚡️ Внеочередные",
+    # Smart pushes
+    "smart_no_login":    "🎫 Не заходил сегодня",
+    "smart_season_end":  "⚠️ До конца сезона 24ч",
+    "smart_raffle_soon": "💎 До мини-розыгрыша 12ч",
+    "smart_streak":      "🔥 Серия под угрозой",
+    # Broadcasts
+    "broadcast_raffle":  "🎁 Мини-розыгрыш (авто)",
+    "broadcast":         "📣 Ручная рассылка",
+    # Followup
+    "followup_onboarding": "👋 Followup: не завершил регистрацию",
+    "followup_subscribe":  "🎁 Followup: не подписался",
+    # Legacy (старые записи до обновления)
+    "regular":     "📅 Умные пуши (старые)",
+    "out_of_turn": "⚡️ Внеочередные (старые)",
 }
 
 

@@ -9,6 +9,7 @@ from apscheduler.triggers.cron import CronTrigger
 from aiogram import Bot
 from bot.config import settings
 from bot.database import async_session_factory
+from bot.database.models import PushLog
 from bot.database.repositories import UserRepository, SeasonRepository, WinnerRepository
 from bot.database.repositories.raffle_repo import RaffleRepository
 from bot.services.raffle import RaffleService
@@ -55,6 +56,7 @@ async def send_registration_followup(bot: Bot, telegram_id: int) -> None:
 
         if not user.onboarding_done:
             # Scenario A: didn't finish onboarding
+            followup_type = "followup_onboarding"
             text = (
                 "👋 Вы начали регистрацию, но не завершили.\n\n"
                 "Займёт всего 30 секунд — и вы в розыгрыше!\n"
@@ -62,6 +64,7 @@ async def send_registration_followup(bot: Bot, telegram_id: int) -> None:
             )
         else:
             # Scenario B: onboarding done but sponsor step skipped
+            followup_type = "followup_subscribe"
             season = await season_repo.get_active()
             count = await season_repo.participants_count(season.id) if season else 0
             if season and season.sponsor_type == "bot":
@@ -76,7 +79,10 @@ async def send_registration_followup(bot: Bot, telegram_id: int) -> None:
 
         try:
             await bot.send_message(chat_id=telegram_id, text=text, parse_mode="HTML")
-            logger.info(f"send_registration_followup: sent to {telegram_id}")
+            async with async_session_factory() as log_session:
+                log_session.add(PushLog(user_id=user.id, push_type=followup_type))
+                await log_session.commit()
+            logger.info(f"send_registration_followup [{followup_type}]: sent to {telegram_id}")
         except Exception as e:
             logger.warning(f"send_registration_followup: failed for {telegram_id}: {e}")
 
@@ -256,6 +262,7 @@ async def generate_fake_winner(bot: Bot) -> None:
             f"Победитель: <b>{name}</b>\n\n"
             f"Смотрите результаты в разделе «🏅 Победители»!",
             exclude_telegram_id=fake_tg_id,
+            push_type="broadcast_raffle",
         )
 
 
@@ -351,19 +358,19 @@ async def send_smart_pushes(bot: Bot) -> None:
                 user.last_login_date.astimezone(tz).date() < now.date()
             )
             if login_needed:
-                await send_push(bot, user, "🎫 Сегодня вы ещё не получили билеты! Зайдите в бота.", session)
+                await send_push(bot, user, "🎫 Сегодня вы ещё не получили билеты! Зайдите в бота.", session, push_type="smart_no_login")
                 await asyncio.sleep(_SEND_INTERVAL)
                 continue
 
             # 24h to season end
             if 22 <= hours_to_end <= 26:
-                await send_push(bot, user, "⚠️ До завершения сезона осталось 24 часа! Успейте улучшить позицию.", session)
+                await send_push(bot, user, "⚠️ До завершения сезона осталось 24 часа! Успейте улучшить позицию.", session, push_type="smart_season_end")
                 await asyncio.sleep(_SEND_INTERVAL)
                 continue
 
             # 12h to mini raffle
             if hours_to_raffle is not None and 10 <= hours_to_raffle <= 14:
-                await send_push(bot, user, f"💎 До мини-розыгрыша ({next_raffle.prize_amount} ₽) осталось 12 часов!", session)
+                await send_push(bot, user, f"💎 До мини-розыгрыша ({next_raffle.prize_amount} ₽) осталось 12 часов!", session, push_type="smart_raffle_soon")
                 await asyncio.sleep(_SEND_INTERVAL)
                 continue
 
@@ -372,7 +379,7 @@ async def send_smart_pushes(bot: Bot) -> None:
             if bonus_last:
                 last_local = bonus_last.astimezone(tz)
                 if (now.date() - last_local.date()).days >= 1:
-                    await send_push(bot, user, "🔥 Серия входов под угрозой! Зайдите в бота сегодня.", session)
+                    await send_push(bot, user, "🔥 Серия входов под угрозой! Зайдите в бота сегодня.", session, push_type="smart_streak")
                     await asyncio.sleep(_SEND_INTERVAL)
                     continue
 

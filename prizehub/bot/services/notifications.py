@@ -40,42 +40,54 @@ async def _can_send_push(user: User) -> bool:
     return (now - last).total_seconds() >= 86400
 
 
-async def _mark_push_sent(session: AsyncSession, user: User) -> None:
+async def _mark_push_sent(session: AsyncSession, user: User, push_type: str) -> None:
     tz = pytz.timezone(settings.TIMEZONE)
     await UserRepository(session).update_push_date(user.id, datetime.now(tz))
-    log = PushLog(user_id=user.id, push_type="regular")
+    log = PushLog(user_id=user.id, push_type=push_type)
     session.add(log)
 
 
-async def send_push(bot: Bot, user: User, text: str, session: AsyncSession, out_of_turn: bool = False) -> bool:
+async def send_push(
+    bot: Bot,
+    user: User,
+    text: str,
+    session: AsyncSession,
+    out_of_turn: bool = False,
+    push_type: str = "regular",
+) -> bool:
     if not out_of_turn and not await _can_send_push(user):
         return False
     try:
         await bot.send_message(chat_id=user.telegram_id, text=text)
         if not out_of_turn:
-            await _mark_push_sent(session, user)
+            await _mark_push_sent(session, user, push_type)
         else:
-            log = PushLog(user_id=user.id, push_type="out_of_turn")
+            log = PushLog(user_id=user.id, push_type=push_type)
             session.add(log)
         return True
     except (TelegramForbiddenError, TelegramBadRequest):
         return False
 
 
-async def broadcast_out_of_turn(bot: Bot, text: str, exclude_telegram_id: int | None = None) -> None:
+async def broadcast_out_of_turn(
+    bot: Bot,
+    text: str,
+    exclude_telegram_id: int | None = None,
+    push_type: str = "broadcast",
+) -> None:
     async with async_session_factory() as session:
         users = await _broadcast_audience(session)
         total = len(users)
         sent = 0
         blocked = 0
         failed = 0
-        logger.info(f"broadcast_out_of_turn: starting, audience={total}")
+        logger.info(f"broadcast_out_of_turn [{push_type}]: starting, audience={total}")
         for user in users:
             if exclude_telegram_id and user.telegram_id == exclude_telegram_id:
                 continue
             try:
                 await bot.send_message(chat_id=user.telegram_id, text=text, parse_mode="HTML")
-                log = PushLog(user_id=user.id, push_type="broadcast")
+                log = PushLog(user_id=user.id, push_type=push_type)
                 session.add(log)
                 sent += 1
             except (TelegramForbiddenError, TelegramBadRequest) as e:
@@ -83,9 +95,9 @@ async def broadcast_out_of_turn(bot: Bot, text: str, exclude_telegram_id: int | 
                     blocked += 1
                 else:
                     failed += 1
-                    logger.warning(f"broadcast_out_of_turn: failed for {user.telegram_id}: {e}")
+                    logger.warning(f"broadcast_out_of_turn [{push_type}]: failed for {user.telegram_id}: {e}")
             await asyncio.sleep(_SEND_INTERVAL)
         await session.commit()
         logger.info(
-            f"broadcast_out_of_turn: done — sent={sent}, blocked={blocked}, failed={failed}, total={total}"
+            f"broadcast_out_of_turn [{push_type}]: done — sent={sent}, blocked={blocked}, failed={failed}, total={total}"
         )

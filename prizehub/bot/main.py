@@ -69,6 +69,10 @@ async def main() -> None:
     dp["scheduler"] = scheduler  # injected into handlers as AsyncIOScheduler parameter
     logger.info("Scheduler started.")
 
+    # Recover followup jobs lost during previous restart
+    from bot.scheduler.tasks import reschedule_missed_followups
+    await reschedule_missed_followups(bot, scheduler)
+
     try:
         await bot.delete_webhook(drop_pending_updates=True)
         logger.info("Polling started.")

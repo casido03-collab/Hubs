@@ -2,7 +2,7 @@ import asyncio
 import logging
 import random
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -85,6 +85,70 @@ async def send_registration_followup(bot: Bot, telegram_id: int) -> None:
             logger.info(f"send_registration_followup [{followup_type}]: sent to {telegram_id}")
         except Exception as e:
             logger.warning(f"send_registration_followup: failed for {telegram_id}: {e}")
+
+
+async def reschedule_missed_followups(bot: Bot, scheduler: "AsyncIOScheduler") -> None:
+    """On startup: re-queue followup jobs lost due to bot restart.
+
+    Finds users registered in the last 24h who are not yet subscribed and
+    never received a followup push. Sends immediately if 1h already passed,
+    otherwise schedules for registration_date + 1h."""
+    from apscheduler.triggers.date import DateTrigger
+    from sqlalchemy import select as sa_select
+    from bot.database.models import User, PushLog
+
+    if not sponsor_mode.is_required():
+        logger.info("reschedule_missed_followups: skipped (white mode active).")
+        return
+
+    async with async_session_factory() as session:
+        cutoff = datetime.now(pytz.utc) - timedelta(hours=24)
+
+        already_notified = sa_select(PushLog.user_id).where(
+            PushLog.push_type.in_(["followup_onboarding", "followup_subscribe"])
+        )
+
+        result = await session.execute(
+            sa_select(User).where(
+                User.registration_date >= cutoff,
+                User.is_subscribed == False,  # noqa: E712
+                User.id.not_in(already_notified),
+            )
+        )
+        users = result.scalars().all()
+
+    now = datetime.now(pytz.utc)
+    immediate = 0
+    scheduled = 0
+
+    for user in users:
+        reg_dt = user.registration_date
+        if reg_dt.tzinfo is None:
+            reg_dt = pytz.utc.localize(reg_dt)
+
+        fire_at = reg_dt + timedelta(hours=1)
+
+        if fire_at <= now:
+            # 1h already passed — send with a 3-second stagger to avoid startup flood
+            run_date = now + timedelta(seconds=30 + immediate * 3)
+            immediate += 1
+        else:
+            # Still within 1h window — fire at exact original time
+            run_date = fire_at
+            scheduled += 1
+
+        scheduler.add_job(
+            send_registration_followup,
+            trigger=DateTrigger(run_date=run_date, timezone=pytz.utc),
+            kwargs={"bot": bot, "telegram_id": user.telegram_id},
+            id=f"reg_followup_{user.telegram_id}",
+            replace_existing=True,
+        )
+
+    logger.info(
+        f"reschedule_missed_followups: recovered {immediate} immediate + {scheduled} scheduled jobs"
+        f" (total={immediate + scheduled})"
+    )
 
 
 async def check_mini_raffles(bot: Bot) -> None:

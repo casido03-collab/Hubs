@@ -1,7 +1,11 @@
+from datetime import datetime, timedelta
 from aiogram import Router, Bot
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.date import DateTrigger
+import pytz
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.database.repositories import UserRepository, SeasonRepository
 from bot.keyboards import age_keyboard, main_menu_keyboard, subscribe_keyboard, pre_subscribe_reply_keyboard, main_reply_keyboard
@@ -12,7 +16,7 @@ router = Router()
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, state: FSMContext, session: AsyncSession, bot: Bot):
+async def cmd_start(message: Message, state: FSMContext, session: AsyncSession, bot: Bot, scheduler: AsyncIOScheduler):
     user_repo = UserRepository(session)
     season_repo = SeasonRepository(session)
 
@@ -36,6 +40,17 @@ async def cmd_start(message: Message, state: FSMContext, session: AsyncSession, 
             referred_by_id=referred_by.id if referred_by else None,
         )
         await session.commit()
+
+        # Schedule 1-hour follow-up push (scenarios A/B)
+        from bot.scheduler.tasks import send_registration_followup
+        run_at = datetime.now(pytz.utc) + timedelta(hours=1)
+        scheduler.add_job(
+            send_registration_followup,
+            trigger=DateTrigger(run_date=run_at, timezone=pytz.utc),
+            kwargs={"bot": bot, "telegram_id": tg_user.id},
+            id=f"reg_followup_{tg_user.id}",
+            replace_existing=True,
+        )
 
         # Award referrer if any
         if referred_by:

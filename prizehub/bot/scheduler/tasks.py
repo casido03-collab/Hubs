@@ -35,6 +35,52 @@ _FAKE_PRIZES = [500, 1000, 1500, 2000]
 _AUTO_TG_ID_BASE = 9_200_000
 
 
+async def send_registration_followup(bot: Bot, telegram_id: int) -> None:
+    """1 hour after /start: remind user to finish onboarding (A) or subscribe (B)."""
+    async with async_session_factory() as session:
+        user_repo = UserRepository(session)
+        season_repo = SeasonRepository(session)
+
+        user = await user_repo.get_by_telegram_id(telegram_id)
+        if user is None:
+            return
+
+        # Already has access → nothing to remind
+        if user.is_subscribed:
+            return
+
+        # White mode → no sponsor requirement, user already has full access
+        if not sponsor_mode.is_required():
+            return
+
+        if not user.onboarding_done:
+            # Scenario A: didn't finish onboarding
+            text = (
+                "👋 Вы начали регистрацию, но не завершили.\n\n"
+                "Займёт всего 30 секунд — и вы в розыгрыше!\n"
+                "Нажмите /start чтобы продолжить."
+            )
+        else:
+            # Scenario B: onboarding done but sponsor step skipped
+            season = await season_repo.get_active()
+            count = await season_repo.participants_count(season.id) if season else 0
+            if season and season.sponsor_type == "bot":
+                action = "запустить бота спонсора и нажать «✅ Я запустил»"
+            else:
+                action = "подписаться на канал спонсора и нажать «✅ Я подписался»"
+            text = (
+                f"🎁 Вы почти участвуете!\n\n"
+                f"Осталось {action} — и вы в игре.\n\n"
+                f"👥 Уже участвуют: <b>{count:,}</b> человек"
+            )
+
+        try:
+            await bot.send_message(chat_id=telegram_id, text=text, parse_mode="HTML")
+            logger.info(f"send_registration_followup: sent to {telegram_id}")
+        except Exception as e:
+            logger.warning(f"send_registration_followup: failed for {telegram_id}: {e}")
+
+
 async def check_mini_raffles(bot: Bot) -> None:
     """Check if any mini raffle should be conducted right now."""
     async with async_session_factory() as session:

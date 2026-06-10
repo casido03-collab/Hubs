@@ -66,6 +66,7 @@ async def main() -> None:
     # Scheduler
     scheduler = setup_scheduler(bot, checker_bot)
     scheduler.start()
+    dp["scheduler"] = scheduler  # injected into handlers as AsyncIOScheduler parameter
     logger.info("Scheduler started.")
 
     try:

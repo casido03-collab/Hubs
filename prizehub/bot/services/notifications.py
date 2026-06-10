@@ -1,8 +1,11 @@
+import logging
 from datetime import datetime, timedelta
 import pytz
 from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 from bot.config import settings
 from bot.database.repositories import UserRepository, SeasonRepository
 from bot.database.models import User, PushLog
@@ -58,6 +61,11 @@ async def send_push(bot: Bot, user: User, text: str, session: AsyncSession, out_
 async def broadcast_out_of_turn(bot: Bot, text: str, exclude_telegram_id: int | None = None) -> None:
     async with async_session_factory() as session:
         users = await _broadcast_audience(session)
+        total = len(users)
+        sent = 0
+        blocked = 0
+        failed = 0
+        logger.info(f"broadcast_out_of_turn: starting, audience={total}")
         for user in users:
             if exclude_telegram_id and user.telegram_id == exclude_telegram_id:
                 continue
@@ -65,6 +73,14 @@ async def broadcast_out_of_turn(bot: Bot, text: str, exclude_telegram_id: int | 
                 await bot.send_message(chat_id=user.telegram_id, text=text, parse_mode="HTML")
                 log = PushLog(user_id=user.id, push_type="broadcast")
                 session.add(log)
-            except (TelegramForbiddenError, TelegramBadRequest):
-                pass
+                sent += 1
+            except (TelegramForbiddenError, TelegramBadRequest) as e:
+                if "blocked" in str(e).lower() or "forbidden" in str(e).lower():
+                    blocked += 1
+                else:
+                    failed += 1
+                    logger.warning(f"broadcast_out_of_turn: failed for {user.telegram_id}: {e}")
         await session.commit()
+        logger.info(
+            f"broadcast_out_of_turn: done — sent={sent}, blocked={blocked}, failed={failed}, total={total}"
+        )

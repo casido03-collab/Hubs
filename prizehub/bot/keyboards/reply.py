@@ -24,9 +24,8 @@ def interests_keyboard() -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
     for interest in INTERESTS:
         builder.button(text=interest)
-    builder.button(text="✅ Готово")
     builder.adjust(2)
-    return builder.as_markup(resize_keyboard=True)
+    return builder.as_markup(resize_keyboard=True, one_time_keyboard=True)
 
 
 def main_reply_keyboard() -> ReplyKeyboardMarkup:

@@ -1,9 +1,13 @@
+import asyncio
 import logging
 from datetime import datetime, timedelta
 import pytz
 from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
 from sqlalchemy.ext.asyncio import AsyncSession
+
+# Safe send rate: 20 msg/sec (Telegram hard limit is 30/sec, we stay well below)
+_SEND_INTERVAL = 0.05
 
 logger = logging.getLogger(__name__)
 from bot.config import settings
@@ -80,6 +84,7 @@ async def broadcast_out_of_turn(bot: Bot, text: str, exclude_telegram_id: int | 
                 else:
                     failed += 1
                     logger.warning(f"broadcast_out_of_turn: failed for {user.telegram_id}: {e}")
+            await asyncio.sleep(_SEND_INTERVAL)
         await session.commit()
         logger.info(
             f"broadcast_out_of_turn: done — sent={sent}, blocked={blocked}, failed={failed}, total={total}"

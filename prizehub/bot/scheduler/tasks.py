@@ -340,6 +340,7 @@ async def send_smart_pushes(bot: Bot) -> None:
             raffle_dt = next_raffle.scheduled_at.astimezone(tz) if next_raffle.scheduled_at.tzinfo else tz.localize(next_raffle.scheduled_at)
             hours_to_raffle = (raffle_dt - now).total_seconds() / 3600
 
+        from bot.services.notifications import _SEND_INTERVAL
         for user in users:
             sp = await season_repo.get_participant(user.id, season.id)
             if not sp:
@@ -351,16 +352,19 @@ async def send_smart_pushes(bot: Bot) -> None:
             )
             if login_needed:
                 await send_push(bot, user, "🎫 Сегодня вы ещё не получили билеты! Зайдите в бота.", session)
+                await asyncio.sleep(_SEND_INTERVAL)
                 continue
 
             # 24h to season end
             if 22 <= hours_to_end <= 26:
                 await send_push(bot, user, "⚠️ До завершения сезона осталось 24 часа! Успейте улучшить позицию.", session)
+                await asyncio.sleep(_SEND_INTERVAL)
                 continue
 
             # 12h to mini raffle
             if hours_to_raffle is not None and 10 <= hours_to_raffle <= 14:
                 await send_push(bot, user, f"💎 До мини-розыгрыша ({next_raffle.prize_amount} ₽) осталось 12 часов!", session)
+                await asyncio.sleep(_SEND_INTERVAL)
                 continue
 
             # Streak danger
@@ -369,6 +373,7 @@ async def send_smart_pushes(bot: Bot) -> None:
                 last_local = bonus_last.astimezone(tz)
                 if (now.date() - last_local.date()).days >= 1:
                     await send_push(bot, user, "🔥 Серия входов под угрозой! Зайдите в бота сегодня.", session)
+                    await asyncio.sleep(_SEND_INTERVAL)
                     continue
 
         await session.commit()

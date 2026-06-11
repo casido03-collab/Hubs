@@ -23,7 +23,7 @@ def bot_subscribe_keyboard(bot_link: str) -> InlineKeyboardMarkup:
 def check_subscription_keyboard(sponsor_link: str) -> InlineKeyboardMarkup:
     """Home/menu re-prompt keyboard when sponsor is a channel."""
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="🔗 Подписаться", url=sponsor_link))
+    builder.row(InlineKeyboardButton(text="🎁 Подписаться и участвовать", url=sponsor_link))
     builder.row(InlineKeyboardButton(text="✅ Проверить подписку", callback_data="check_subscription"))
     return builder.as_markup()
 

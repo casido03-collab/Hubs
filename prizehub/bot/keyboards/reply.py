@@ -38,7 +38,7 @@ def main_reply_keyboard() -> ReplyKeyboardMarkup:
     builder.button(text="🏠 Главная")
     builder.button(text="🎫 Заработать билеты")
     builder.button(text="🏆 Рейтинг")
-    builder.button(text="🏅 Победители")
+    builder.button(text="📜 История")
     builder.button(text="👤 Профиль")
     if sponsor_mode.is_required():
         builder.button(text="ℹ️ О розыгрыше")
@@ -52,7 +52,7 @@ def pre_subscribe_reply_keyboard() -> ReplyKeyboardMarkup:
     """Keyboard shown to users who haven't subscribed yet — lets them browse open sections."""
     builder = ReplyKeyboardBuilder()
     builder.button(text="🏠 Главная")
-    builder.button(text="🏅 Победители")
+    builder.button(text="📜 История")
     builder.button(text="🏆 Рейтинг")
     builder.adjust(1, 2)
     return builder.as_markup(resize_keyboard=True)

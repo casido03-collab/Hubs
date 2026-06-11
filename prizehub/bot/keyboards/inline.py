@@ -44,7 +44,7 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🏆 Рейтинг", callback_data="rating"),
     )
     builder.row(
-        InlineKeyboardButton(text="🏅 Победители", callback_data="winners"),
+        InlineKeyboardButton(text="📜 История", callback_data="winners"),
         InlineKeyboardButton(text="👤 Профиль", callback_data="profile"),
     )
     return builder.as_markup()
@@ -121,7 +121,7 @@ def admin_menu_keyboard() -> InlineKeyboardMarkup:
     )
     builder.row(
         InlineKeyboardButton(text="👥 Пользователи", callback_data="admin_users"),
-        InlineKeyboardButton(text="🏅 Победители", callback_data="admin_winners"),
+        InlineKeyboardButton(text="📜 История", callback_data="admin_winners"),
     )
     builder.row(InlineKeyboardButton(text="📣 Пуши", callback_data="admin_pushes"))
     return builder.as_markup()

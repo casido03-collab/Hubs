@@ -9,20 +9,20 @@ router = Router()
 PAGE_SIZE = 5
 
 
-@router.message(F.text == "🏅 Победители")
+@router.message(F.text == "📜 История")
 async def msg_winners(message: Message, session: AsyncSession):
     winner_repo = WinnerRepository(session)
     winners = await winner_repo.get_published(limit=PAGE_SIZE, offset=0)
 
     if not winners:
         await message.answer(
-            "🏅 <b>Победители</b>\n\nПока нет опубликованных победителей.",
+            "📜 <b>История розыгрышей</b>\n\nПока нет опубликованных результатов.",
             parse_mode="HTML",
         )
         return
 
     user_repo = UserRepository(session)
-    lines = ["🏅 <b>Победители</b>\n"]
+    lines = ["📜 <b>История розыгрышей</b>\n<i>Результаты прошлых мини-розыгрышей и итоги сезонов</i>\n"]
     for w in winners:
         user = await user_repo.get_by_id(w.user_id)
         name = user.first_name if user else "—"
@@ -55,20 +55,20 @@ async def _show_winners(callback: CallbackQuery, session: AsyncSession, page: in
     if not winners:
         try:
             await callback.message.edit_text(
-                "🏅 <b>Победители</b>\n\nПока нет опубликованных победителей.",
+                "📜 <b>История розыгрышей</b>\n\nПока нет опубликованных результатов.",
                 parse_mode="HTML",
                 reply_markup=back_to_menu(),
             )
         except Exception:
             await callback.message.answer(
-                "🏅 <b>Победители</b>\n\nПока нет опубликованных победителей.",
+                "📜 <b>История розыгрышей</b>\n\nПока нет опубликованных результатов.",
                 parse_mode="HTML",
                 reply_markup=back_to_menu(),
             )
         await callback.answer()
         return
 
-    lines = ["🏅 <b>Победители</b>\n"]
+    lines = ["📜 <b>История розыгрышей</b>\n<i>Результаты прошлых мини-розыгрышей и итоги сезонов</i>\n"]
     for w in winners:
         user = await user_repo.get_by_id(w.user_id)
         name = user.first_name if user else "—"

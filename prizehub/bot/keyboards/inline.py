@@ -50,8 +50,10 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def home_keyboard() -> InlineKeyboardMarkup:
+def home_keyboard(sponsor_link: str | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+    if sponsor_link:
+        builder.row(InlineKeyboardButton(text="🔗 Проверить подписку", url=sponsor_link))
     builder.row(
         InlineKeyboardButton(text="🎫 Заработать билеты", callback_data="earn_tickets"),
         InlineKeyboardButton(text="🏆 Рейтинг", callback_data="rating"),

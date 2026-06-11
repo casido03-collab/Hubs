@@ -110,7 +110,14 @@ async def _home_text(session: AsyncSession, telegram_id: int) -> tuple[str, str 
         f"{rank_gap}"
         f"{raffle_info}"
     )
-    return text, season.prize_photo_id, home_keyboard()
+    sponsor_link = None
+    if sponsor_mode.is_required() and season:
+        from bot.services.channel_utils import build_sponsor_link
+        if season.sponsor_type == "bot":
+            sponsor_link = build_sponsor_link(season.sponsor_bot or "")
+        else:
+            sponsor_link = build_sponsor_link(season.sponsor_channel or "")
+    return text, season.prize_photo_id, home_keyboard(sponsor_link)
 
 
 @router.message(F.text == "🏠 Главная")

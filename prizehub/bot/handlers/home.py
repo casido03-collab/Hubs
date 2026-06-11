@@ -185,5 +185,9 @@ async def cb_menu(callback: CallbackQuery, session: AsyncSession):
             sponsor_link = build_sponsor_link(season.sponsor_channel or "") if season else "https://t.me/"
             await callback.message.answer("🏠 <b>Главное меню</b>", parse_mode="HTML", reply_markup=check_subscription_keyboard(sponsor_link))
     else:
-        await callback.message.answer("🏠 <b>Главное меню</b>", parse_mode="HTML", reply_markup=main_menu_keyboard())
+        text, photo_id, kb = await _home_text(session, callback.from_user.id)
+        if photo_id:
+            await callback.message.answer_photo(photo=photo_id, caption=text, parse_mode="HTML", reply_markup=kb)
+        else:
+            await callback.message.answer(text, parse_mode="HTML", reply_markup=kb)
     await callback.answer()

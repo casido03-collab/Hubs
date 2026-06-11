@@ -98,6 +98,14 @@ class TicketService:
 
         return amount
 
+    async def award_partner_bot(self, user: User, season_id: int, bot_key: str, amount: int) -> tuple[int, bool]:
+        """One-time reward for launching a partner bot. Returns (amount, was_awarded)."""
+        reason = f"partner_{bot_key}"
+        if await self.ticket_repo.has_reason(user.id, reason):
+            return 0, False
+        await self._award(user, season_id, amount, reason)
+        return amount, True
+
     async def _award(self, user: User, season_id: int, amount: int, reason: str) -> None:
         await self.season_repo.add_tickets(user.id, season_id, amount)
         await self.ticket_repo.log(user.id, season_id, amount, reason)

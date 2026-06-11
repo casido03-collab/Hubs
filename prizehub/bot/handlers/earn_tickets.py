@@ -5,11 +5,22 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.config import settings
 from bot.database.repositories import UserRepository, SeasonRepository
-from bot.keyboards import earn_tickets_keyboard, back_to_menu
+from bot.keyboards import earn_tickets_keyboard, back_to_menu, partner_bot_keyboard
+from bot.database.repositories import TicketRepository
 from bot.services.tickets import TicketService
 from bot.services import sponsor_mode
 
 router = Router()
+
+# Partner bots: key → (name, link, tickets)
+_PARTNER_BOTS = {
+    "fin_cosult": ("Финансовый консультант", "https://t.me/fin_cosult_bot", 98),
+}
+
+
+async def _partner_done(session: AsyncSession, user_id: int, bot_key: str) -> bool:
+    repo = TicketRepository(session)
+    return await repo.has_reason(user_id, f"partner_{bot_key}")
 
 
 async def _require_subscription(callback: CallbackQuery, session: AsyncSession) -> bool:
@@ -50,6 +61,7 @@ async def msg_earn_tickets(message: Message, session: AsyncSession):
         last = user.last_login_date.astimezone(tz) if user.last_login_date.tzinfo else tz.localize(user.last_login_date)
         login_available = last.date() < now.date()
 
+    fin_cosult_done = await _partner_done(session, user.id, "fin_cosult")
     text = (
         f"🎫 <b>Заработать билеты</b>\n\n"
         f"Ваши билеты: <b>{tickets:,}</b>\n"
@@ -58,7 +70,7 @@ async def msg_earn_tickets(message: Message, session: AsyncSession):
     )
     await message.answer(
         text, parse_mode="HTML",
-        reply_markup=earn_tickets_keyboard(bonus_available, login_available),
+        reply_markup=earn_tickets_keyboard(bonus_available, login_available, fin_cosult_done),
     )
 
 
@@ -88,6 +100,7 @@ async def cb_earn_tickets(callback: CallbackQuery, session: AsyncSession):
         last = user.last_login_date.astimezone(tz) if user.last_login_date.tzinfo else tz.localize(user.last_login_date)
         login_available = last.date() < now.date()
 
+    fin_cosult_done = await _partner_done(session, user.id, "fin_cosult")
     text = (
         f"🎫 <b>Заработать билеты</b>\n\n"
         f"Ваши билеты: <b>{tickets:,}</b>\n"
@@ -97,12 +110,12 @@ async def cb_earn_tickets(callback: CallbackQuery, session: AsyncSession):
     try:
         await callback.message.edit_text(
             text, parse_mode="HTML",
-            reply_markup=earn_tickets_keyboard(bonus_available, login_available),
+            reply_markup=earn_tickets_keyboard(bonus_available, login_available, fin_cosult_done),
         )
     except Exception:
         await callback.message.answer(
             text, parse_mode="HTML",
-            reply_markup=earn_tickets_keyboard(bonus_available, login_available),
+            reply_markup=earn_tickets_keyboard(bonus_available, login_available, fin_cosult_done),
         )
     await callback.answer()
 
@@ -185,6 +198,71 @@ async def cb_referral(callback: CallbackQuery, session: AsyncSession):
     except Exception:
         await callback.message.answer(text, parse_mode="HTML", reply_markup=back_to_menu())
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("partner_bot:"))
+async def cb_partner_bot(callback: CallbackQuery, session: AsyncSession):
+    if not await _require_subscription(callback, session):
+        return
+
+    bot_key = callback.data.split(":")[1]
+    if bot_key not in _PARTNER_BOTS:
+        await callback.answer()
+        return
+
+    name, link, tickets = _PARTNER_BOTS[bot_key]
+    user_repo = UserRepository(session)
+    user = await user_repo.get_by_telegram_id(callback.from_user.id)
+    already_done = await _partner_done(session, user.id, bot_key)
+
+    if already_done:
+        await callback.answer("✅ Вы уже получили билеты за этого бота.", show_alert=True)
+        return
+
+    text = (
+        f"🤖 <b>{name}</b>\n\n"
+        f"Запустите бота и получите <b>{tickets} билетов</b>!\n\n"
+        f"1️⃣ Нажмите «➡️ Перейти к боту»\n"
+        f"2️⃣ Нажмите /start в боте\n"
+        f"3️⃣ Вернитесь сюда и нажмите «✅ Я запустил»"
+    )
+    try:
+        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=partner_bot_keyboard(link, bot_key))
+    except Exception:
+        await callback.message.answer(text, parse_mode="HTML", reply_markup=partner_bot_keyboard(link, bot_key))
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("partner_bot_claim:"))
+async def cb_partner_bot_claim(callback: CallbackQuery, session: AsyncSession):
+    if not await _require_subscription(callback, session):
+        return
+
+    bot_key = callback.data.split(":")[1]
+    if bot_key not in _PARTNER_BOTS:
+        await callback.answer()
+        return
+
+    user_repo = UserRepository(session)
+    user = await user_repo.get_by_telegram_id(callback.from_user.id)
+    season_repo = SeasonRepository(session)
+    season = await season_repo.get_active()
+
+    if not season:
+        await callback.answer("Нет активного сезона.", show_alert=True)
+        return
+
+    name, link, tickets = _PARTNER_BOTS[bot_key]
+    ts = TicketService(session)
+    amount, awarded = await ts.award_partner_bot(user, season.id, bot_key, tickets)
+
+    if not awarded:
+        await callback.answer("✅ Вы уже получили билеты за этого бота.", show_alert=True)
+        await cb_earn_tickets(callback, session)
+        return
+
+    await callback.answer(f"🎉 +{amount} билетов за {name}!", show_alert=True)
+    await cb_earn_tickets(callback, session)
 
 
 @router.callback_query(F.data == "achievements")

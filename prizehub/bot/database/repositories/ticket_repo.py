@@ -16,6 +16,15 @@ class TicketRepository:
         )
         self.session.add(tx)
 
+    async def has_reason(self, user_id: int, reason: str) -> bool:
+        result = await self.session.execute(
+            select(TicketTransaction.id).where(
+                TicketTransaction.user_id == user_id,
+                TicketTransaction.reason == reason,
+            ).limit(1)
+        )
+        return result.scalar_one_or_none() is not None
+
     async def total_earned(self, season_id: int) -> int:
         result = await self.session.execute(
             select(func.sum(TicketTransaction.amount)).where(

@@ -62,15 +62,33 @@ def home_keyboard(sponsor_link: str | None = None) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def earn_tickets_keyboard(bonus_available: bool, login_available: bool) -> InlineKeyboardMarkup:
+def earn_tickets_keyboard(
+    bonus_available: bool,
+    login_available: bool,
+    partner_fin_cosult_done: bool = False,
+) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     bonus_label = "🎁 Ежедневный бонус" if bonus_available else "🎁 Бонус (уже получен)"
     login_label = "🔥 Серия входов" if login_available else "🔥 Вход (уже отмечен)"
     builder.row(InlineKeyboardButton(text=bonus_label, callback_data="claim_bonus"))
     builder.row(InlineKeyboardButton(text=login_label, callback_data="claim_login"))
+    partner_label = (
+        "✅ Финансовый консультант (получено)"
+        if partner_fin_cosult_done
+        else "🤖 Финансовый консультант · +98 🎫"
+    )
+    builder.row(InlineKeyboardButton(text=partner_label, callback_data="partner_bot:fin_cosult"))
     builder.row(InlineKeyboardButton(text="👥 Пригласить друга", callback_data="referral"))
     builder.row(InlineKeyboardButton(text="🏅 Достижения", callback_data="achievements"))
     builder.row(InlineKeyboardButton(text="◀️ Меню", callback_data="menu"))
+    return builder.as_markup()
+
+
+def partner_bot_keyboard(bot_link: str, bot_key: str) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="➡️ Перейти к боту", url=bot_link))
+    builder.row(InlineKeyboardButton(text="✅ Я запустил", callback_data=f"partner_bot_claim:{bot_key}"))
+    builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="earn_tickets"))
     return builder.as_markup()
 
 

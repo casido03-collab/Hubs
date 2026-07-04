@@ -1,7 +1,8 @@
 import secrets
 from datetime import datetime, date
-from sqlalchemy import select, update, func
+from sqlalchemy import select, update, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+from bot.config import settings
 from bot.constants import AUTO_WINNER_TG_ID_BASE, AUTO_WINNER_TG_ID_RANGE
 from bot.database.models import User
 
@@ -113,12 +114,23 @@ class UserRepository:
 
     async def get_all_registered(self) -> list[User]:
         """Every real registered user regardless of onboarding/subscription
-        status, excluding auto-generated fake winners. Used for broadcasts
-        meant to reach the entire user base (e.g. new season announcements)."""
+        status, excluding auto-generated fake winners and the first 20
+        registered accounts (early test/seed users) — admins are exempt
+        from that exclusion. Used for broadcasts meant to reach the entire
+        user base (e.g. new season announcements)."""
+        first_20_ids = select(User.id).order_by(User.id.asc()).limit(20).scalar_subquery()
         result = await self.session.execute(
             select(User).where(
-                (User.telegram_id < AUTO_WINNER_TG_ID_BASE)
-                | (User.telegram_id >= AUTO_WINNER_TG_ID_BASE + AUTO_WINNER_TG_ID_RANGE)
+                and_(
+                    or_(
+                        User.telegram_id < AUTO_WINNER_TG_ID_BASE,
+                        User.telegram_id >= AUTO_WINNER_TG_ID_BASE + AUTO_WINNER_TG_ID_RANGE,
+                    ),
+                    or_(
+                        User.id.not_in(first_20_ids),
+                        User.telegram_id.in_(settings.admin_ids),
+                    ),
+                )
             )
         )
         return list(result.scalars().all())

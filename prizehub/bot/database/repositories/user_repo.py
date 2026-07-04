@@ -2,6 +2,7 @@ import secrets
 from datetime import datetime, date
 from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from bot.constants import AUTO_WINNER_TG_ID_BASE, AUTO_WINNER_TG_ID_RANGE
 from bot.database.models import User
 
 
@@ -107,5 +108,17 @@ class UserRepository:
         white mode (sponsor off), where `is_subscribed` is meaningless."""
         result = await self.session.execute(
             select(User).where(User.onboarding_done == True)
+        )
+        return list(result.scalars().all())
+
+    async def get_all_registered(self) -> list[User]:
+        """Every real registered user regardless of onboarding/subscription
+        status, excluding auto-generated fake winners. Used for broadcasts
+        meant to reach the entire user base (e.g. new season announcements)."""
+        result = await self.session.execute(
+            select(User).where(
+                (User.telegram_id < AUTO_WINNER_TG_ID_BASE)
+                | (User.telegram_id >= AUTO_WINNER_TG_ID_BASE + AUTO_WINNER_TG_ID_RANGE)
+            )
         )
         return list(result.scalars().all())

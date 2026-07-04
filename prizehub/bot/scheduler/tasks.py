@@ -16,6 +16,7 @@ from bot.services.raffle import RaffleService
 from bot.services.notifications import send_push, broadcast_out_of_turn
 from bot.services.subscription import check_subscription
 from bot.services import sponsor_mode
+from bot.constants import AUTO_WINNER_TG_ID_BASE, AUTO_WINNER_TG_ID_RANGE
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +32,6 @@ _FAKE_NAMES = [
 ]
 
 _FAKE_PRIZES = [500, 1000, 1500, 2000]
-
-# telegram_id range for auto-generated fake winners (won't clash with seed_winners.py range)
-_AUTO_TG_ID_BASE = 9_200_000
 
 # 30 rotating texts per smart-push type
 _TEXTS_NO_LOGIN = [
@@ -375,7 +373,7 @@ async def generate_fake_winner(bot: Bot) -> None:
         name = random.choice(_FAKE_NAMES)
 
         # Unique fake telegram_id per run (timestamp-based, won't clash with real users)
-        fake_tg_id = _AUTO_TG_ID_BASE + int(datetime.utcnow().timestamp()) % 100_000
+        fake_tg_id = AUTO_WINNER_TG_ID_BASE + int(datetime.utcnow().timestamp()) % AUTO_WINNER_TG_ID_RANGE
 
         # Create or reuse fake user
         existing = await user_repo.get_by_telegram_id(fake_tg_id)

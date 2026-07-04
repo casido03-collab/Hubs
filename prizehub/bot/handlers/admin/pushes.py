@@ -24,7 +24,8 @@ _PUSH_LABELS = {
     "smart_streak":      "🔥 Серия под угрозой",
     # Broadcasts
     "broadcast_raffle":  "🎁 Мини-розыгрыш (авто)",
-    "broadcast":         "📣 Ручная рассылка",
+    "broadcast":         "📣 Ручная рассылка (подписанным)",
+    "broadcast_all":     "📢 Ручная рассылка (всем)",
     # Followup
     "followup_onboarding": "👋 Followup: не завершил регистрацию",
     "followup_subscribe":  "🎁 Followup: не подписался",
@@ -37,7 +38,8 @@ _PUSH_LABELS = {
 def _pushes_menu_keyboard():
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="📊 Статистика пушей", callback_data="admin_push_stats"))
-    builder.row(InlineKeyboardButton(text="📣 Рассылка всем", callback_data="admin_push_broadcast"))
+    builder.row(InlineKeyboardButton(text="📣 Рассылка подписанным", callback_data="admin_push_broadcast"))
+    builder.row(InlineKeyboardButton(text="📢 Рассылка ВСЕМ пользователям", callback_data="admin_push_broadcast_all"))
     builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="admin_menu"))
     return builder.as_markup()
 
@@ -128,7 +130,23 @@ async def cb_admin_push_broadcast_start(callback: CallbackQuery, state: FSMConte
     if not is_admin(callback.from_user.id):
         await callback.answer()
         return
-    await callback.message.answer("Введите текст рассылки (поддерживается HTML):")
+    await callback.message.answer("Введите текст рассылки для <b>подписанных</b> пользователей (поддерживается HTML):", parse_mode="HTML")
+    await state.update_data(audience="subscribed")
+    await state.set_state(AdminPushStates.text)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "admin_push_broadcast_all")
+async def cb_admin_push_broadcast_all_start(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        await callback.answer()
+        return
+    await callback.message.answer(
+        "Введите текст рассылки для <b>ВСЕХ</b> зарегистрированных пользователей "
+        "(включая неподписанных, поддерживается HTML):",
+        parse_mode="HTML",
+    )
+    await state.update_data(audience="all")
     await state.set_state(AdminPushStates.text)
     await callback.answer()
 
@@ -137,8 +155,14 @@ async def cb_admin_push_broadcast_start(callback: CallbackQuery, state: FSMConte
 async def admin_push_send(message: Message, state: FSMContext, bot: Bot):
     if not is_admin(message.from_user.id):
         return
+    data = await state.get_data()
+    audience = data.get("audience", "subscribed")
     await state.clear()
     text = message.text or message.caption or ""
     await message.answer("⏳ Отправляю рассылку...")
-    await broadcast_out_of_turn(bot, text)
-    await message.answer("✅ Рассылка отправлена всем подписанным пользователям.")
+    if audience == "all":
+        await broadcast_out_of_turn(bot, text, push_type="broadcast_all", audience="all")
+        await message.answer("✅ Рассылка отправлена всем зарегистрированным пользователям.")
+    else:
+        await broadcast_out_of_turn(bot, text, push_type="broadcast", audience="subscribed")
+        await message.answer("✅ Рассылка отправлена всем подписанным пользователям.")

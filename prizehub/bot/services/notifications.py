@@ -74,9 +74,15 @@ async def broadcast_out_of_turn(
     text: str,
     exclude_telegram_id: int | None = None,
     push_type: str = "broadcast",
+    audience: str = "subscribed",
 ) -> None:
+    """audience: "subscribed" (default, sponsor-aware) or "all" (every
+    registered user regardless of subscription — e.g. new season announcements)."""
     async with async_session_factory() as session:
-        users = await _broadcast_audience(session)
+        if audience == "all":
+            users = await UserRepository(session).get_all_registered()
+        else:
+            users = await _broadcast_audience(session)
         total = len(users)
         sent = 0
         blocked = 0

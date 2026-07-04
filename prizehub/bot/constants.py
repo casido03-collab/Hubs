@@ -31,6 +31,10 @@ MINI_RAFFLE_PRIZES = {
 MINI_RAFFLE_START_HOUR = 17
 MINI_RAFFLE_END_HOUR = 19
 
+# telegram_id range reserved for auto-generated fake winners (see scheduler/tasks.py)
+AUTO_WINNER_TG_ID_BASE = 9_200_000
+AUTO_WINNER_TG_ID_RANGE = 100_000
+
 PUSH_DAILY_LIMIT = 1
 
 AGE_RANGES = ["До 18", "18–24", "25–34", "35–44", "45+"]

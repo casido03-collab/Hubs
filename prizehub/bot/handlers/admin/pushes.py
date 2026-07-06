@@ -22,6 +22,7 @@ _PUSH_LABELS = {
     "smart_season_end":  "⚠️ До конца сезона 24ч",
     "smart_raffle_soon": "💎 До мини-розыгрыша 12ч",
     "smart_streak":      "🔥 Серия под угрозой",
+    "smart_not_subscribed": "📢 Не подписался (ежедневно)",
     # Broadcasts
     "broadcast_raffle":  "🎁 Мини-розыгрыш (авто)",
     "broadcast":         "📣 Ручная рассылка (подписанным)",

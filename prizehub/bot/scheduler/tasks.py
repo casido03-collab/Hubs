@@ -134,6 +134,40 @@ _TEXTS_STREAK = [
 ]
 
 
+_TEXTS_NOT_SUBSCRIBED = [
+    "🎁 Вы зарегистрировались, но доступ пока закрыт. Нужно {action} — и вы в игре!",
+    "👀 Анкета заполнена, остался один шаг — нужно {action}, чтобы открыть доступ.",
+    "⏳ Пока вы думаете — другие уже собирают билеты. Не тормозите, время {action}!",
+    "🔒 Ваш аккаунт готов, но доступ ещё не открыт. Осталось {action} — и получите стартовые билеты!",
+    "🎫 Стартовые билеты уже ждут вас. Всё что нужно сделать — {action}.",
+    "👥 Уже <b>{count:,}</b> человек участвуют в розыгрыше. Присоединяйтесь — осталось только {action}.",
+    "🚀 Не упустите шанс на главный приз сезона. Последний шаг — {action}.",
+    "💡 Регистрация без следующего шага — это половина дела. Пора {action} и начать участвовать по-настоящему!",
+    "🏆 Главный приз сезона ждёт участников. Чтобы попасть в игру, нужно {action}.",
+    "⚡️ Это займёт меньше минуты: стоит {action} — и сразу получите стартовые билеты.",
+    "🎉 Вы почти у цели! Остался один шаг до участия в розыгрыше — {action}.",
+    "📢 Без этого шага билеты не начисляются. Нужно {action} — и мы сразу зачислим стартовый бонус.",
+    "💎 Участники с билетами уже поднимаются в рейтинге. Не отставайте — {action} уже сегодня!",
+    "🔥 Приз сезона получит один из подписавшихся. Успейте {action}, чтобы быть в их числе.",
+    "🎯 Всего один шаг отделяет вас от участия в розыгрыше — {action}.",
+    "🙌 Уже <b>{count:,}</b> участников в игре. Ваше место тоже забронировано — просто нужно {action}.",
+    "⏰ Каждый день без этого шага — упущенные билеты. Пора {action} и наверстать!",
+    "🎁 Стартовый бонус билетов уже приготовлен для вас. Чтобы забрать его, нужно {action}.",
+    "🚗 Главный приз сезона может достаться вам. Но сначала нужно {action}.",
+    "💪 Не бросайте на середине пути! Анкета пройдена — осталось только {action}.",
+    "🌟 Билеты разыгрываются каждый день. Не оставайтесь в стороне — пора {action}.",
+    "📊 Рейтинг растёт каждый день, а вас в нём пока нет. Нужно {action} — и начнёте зарабатывать билеты.",
+    "🎪 Розыгрыш уже идёт полным ходом. Успейте {action}, чтобы не остаться зрителем.",
+    "🔔 Напоминаем: без этого шага доступ к боту ограничен. Нужно {action} — и откроются все разделы.",
+    "💰 Билеты, рейтинг, призы — всё это доступно после одного шага: {action}.",
+    "🏅 Участники уже выигрывают призы каждые несколько дней. Присоединяйтесь — нужно {action}.",
+    "👊 Вы прошли уже половину пути, регистрируясь в боте. Доведите дело до конца — осталось только {action}.",
+    "🎰 Ваше место в розыгрыше зарезервировано. Чтобы активировать его, нужно {action}.",
+    "✨ Ещё не поздно присоединиться к <b>{count:,}</b> участникам розыгрыша. Пора {action}.",
+    "🚦 Готовы к участию? Тогда осталось {action} — и получите стартовые билеты.",
+]
+
+
 async def _pick_push_text(session, user_id: int, push_type: str, texts: list) -> str:
     """Returns the next rotating text for this user and push_type (cycles every 30)."""
     from sqlalchemy import select, func
@@ -564,6 +598,59 @@ async def send_smart_pushes(bot: Bot) -> None:
         await session.commit()
 
 
+async def send_subscribe_reminders(bot: Bot) -> None:
+    """Daily nudge (10:00 MSK, same run as smart pushes) for users who
+    finished onboarding but never subscribed to the sponsor — the recurring
+    counterpart to the one-time 1h followup_subscribe push. Includes the
+    actual subscribe button so users can act straight from the push."""
+    if not sponsor_mode.is_required():
+        return
+
+    async with async_session_factory() as session:
+        season_repo = SeasonRepository(session)
+        season = await season_repo.get_active()
+        if not season:
+            return
+
+        from sqlalchemy import select as sa_select
+        from bot.database.models import User
+        from bot.services.channel_utils import build_sponsor_link
+        from bot.keyboards import subscribe_keyboard, bot_subscribe_keyboard
+
+        result = await session.execute(
+            sa_select(User).where(
+                User.onboarding_done == True,  # noqa: E712
+                User.is_subscribed == False,  # noqa: E712
+                (User.telegram_id < AUTO_WINNER_TG_ID_BASE)
+                | (User.telegram_id >= AUTO_WINNER_TG_ID_BASE + AUTO_WINNER_TG_ID_RANGE),
+            )
+        )
+        users = result.scalars().all()
+
+        count = await season_repo.participants_count(season.id)
+        if season.sponsor_type == "bot":
+            link = build_sponsor_link(season.sponsor_bot or "")
+            kb = bot_subscribe_keyboard(link)
+            action = "запустить бота спонсора"
+        else:
+            link = build_sponsor_link(season.sponsor_channel or "")
+            kb = subscribe_keyboard(link)
+            action = "подписаться на канал спонсора"
+
+        from bot.services.notifications import _SEND_INTERVAL
+        sent = 0
+        for user in users:
+            text = (await _pick_push_text(session, user.id, "smart_not_subscribed", _TEXTS_NOT_SUBSCRIBED)).format(
+                action=action, count=count,
+            )
+            ok = await send_push(bot, user, text, session, push_type="smart_not_subscribed", reply_markup=kb)
+            if ok:
+                sent += 1
+            await asyncio.sleep(_SEND_INTERVAL)
+        await session.commit()
+        logger.info(f"send_subscribe_reminders: sent to {sent}/{len(users)} not-yet-subscribed users")
+
+
 def setup_scheduler(bot: Bot, checker_bot: Bot) -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler(timezone=pytz.utc)
 
@@ -593,6 +680,15 @@ def setup_scheduler(bot: Bot, checker_bot: Bot) -> AsyncIOScheduler:
         trigger=CronTrigger(hour=7, minute=0, timezone=pytz.utc),  # 10:00 MSK = 07:00 UTC
         kwargs={"bot": bot},
         id="smart_pushes",
+        replace_existing=True,
+    )
+
+    # Daily reminder for onboarded-but-not-subscribed users, same time as smart pushes
+    scheduler.add_job(
+        send_subscribe_reminders,
+        trigger=CronTrigger(hour=7, minute=0, timezone=pytz.utc),
+        kwargs={"bot": bot},
+        id="subscribe_reminders",
         replace_existing=True,
     )
 

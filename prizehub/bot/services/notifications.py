@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import pytz
 from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
+from aiogram.types import InlineKeyboardMarkup
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Safe send rate: 20 msg/sec (Telegram hard limit is 30/sec, we stay well below)
@@ -54,11 +55,12 @@ async def send_push(
     session: AsyncSession,
     out_of_turn: bool = False,
     push_type: str = "regular",
+    reply_markup: InlineKeyboardMarkup | None = None,
 ) -> bool:
     if not out_of_turn and not await _can_send_push(user):
         return False
     try:
-        await bot.send_message(chat_id=user.telegram_id, text=text)
+        await bot.send_message(chat_id=user.telegram_id, text=text, reply_markup=reply_markup)
         if not out_of_turn:
             await _mark_push_sent(session, user, push_type)
         else:
